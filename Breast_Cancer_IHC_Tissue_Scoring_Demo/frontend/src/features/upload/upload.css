@@ -1,0 +1,229 @@
+/* ============================================================================
+   Slide drop zone: chunked upload, with transfer and validation states.
+   ========================================================================== */
+
+.dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 246px;
+  padding: var(--space-6) var(--space-5);
+  text-align: center;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--border-default);
+  background: var(--bg-panel);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+
+.dropzone::before {
+  /* A slow sheen across the idle zone. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 38%,
+    rgba(56, 189, 248, 0.06) 50%,
+    transparent 62%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 5.5s linear infinite;
+  pointer-events: none;
+}
+
+.dropzone:hover {
+  border-color: var(--border-strong);
+}
+
+.dropzone__icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  animation: drift 6s var(--ease-in-out) infinite;
+}
+
+.dropzone__icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.dropzone__title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dropzone__body {
+  max-width: 40ch;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+.dropzone__formats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.dropzone__format {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+
+
+.dropzone--dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dropzone--dragging .dropzone__icon {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.dropzone--error {
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.dropzone--busy {
+  border-style: solid;
+  cursor: default;
+}
+
+.dropzone--busy {
+  border-color: var(--accent);
+}
+
+
+.dropzone__body--error {
+  color: var(--danger);
+}
+
+.dropzone__percent {
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
+/* --- Transfer progress ---------------------------------------------------- */
+
+.progress {
+  position: relative;
+  width: min(100%, 380px);
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--violet));
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+/* Server-side work has no measurable fraction, so the bar cycles rather than
+   pretending to know how far along it is. */
+.progress__fill--indeterminate {
+  width: 40%;
+  transform: none;
+  animation: indeterminate 1.2s var(--ease-in-out) infinite;
+}
+
+@keyframes indeterminate {
+  0% {
+    margin-left: -40%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+
+
+/* --- Leaving a slide behind ------------------------------------------------
+   The panel that offers to free the disk a finished slide is holding. Styled as a
+   decision rather than a warning: deleting is a legitimate choice and so is keeping,
+   and the numbers are what should carry the weight, not the colour. */
+
+.release {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 62ch;
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  text-align: left;
+}
+
+.release__lead {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.release__lead strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.release__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.release__note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-tertiary);
+}
+
+/* The third option, deliberately quieter than the two buttons: it frees about a
+   hundredth of the space and costs the most expensive thing in the pipeline. */
+.release__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.release__link:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.release__problem {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--warn);
+}

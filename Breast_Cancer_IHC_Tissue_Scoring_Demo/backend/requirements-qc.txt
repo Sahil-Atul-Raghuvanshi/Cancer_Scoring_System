@@ -1,0 +1,53 @@
+# Step 2 (quality control) only. Kept out of requirements.txt on purpose: this
+# pulls ~500 MB of PyTorch, and every other endpoint in the app works without
+# it. When it is absent, GET /api/v1/qc/capability says so and the UI degrades
+# instead of breaking.
+#
+# Install into the same virtualenv as requirements.txt:
+#
+#     .venv\Scripts\python -m pip install -r requirements-qc.txt
+#
+# CPU-only wheels (this machine has no CUDA GPU, so this is the right choice -
+# it is also ~2 GB smaller than the CUDA build):
+#
+#     .venv\Scripts\python -m pip install -r requirements-qc.txt \
+#         --extra-index-url https://download.pytorch.org/whl/cpu
+#
+# Then verify before touching the UI:
+#
+#     .venv\Scripts\python scripts\check_qc_models.py
+
+# --- the classical half ------------------------------------------------------
+# scipy - Sobel, Laplacian and Gabor filters for step 2's feature metrics - is
+# no longer listed here. Step 3's morphology needs the same package and step 3
+# always runs, so it moved to requirements.txt as a core dependency.
+
+# --- the model half ----------------------------------------------------------
+# GrandQC pins torch==2.0.1 and segmentation-models-pytorch==0.3.1. Those pins
+# are deliberately NOT used here: there is no torch 2.0.1 wheel for Python 3.13,
+# and running years-old library code is worse than the alternative.
+#
+# The alternative, implemented in app/qc/models.py: the artefact checkpoints are
+# pickled nn.Modules, so they are unpickled purely to lift their tensors out,
+# and those tensors are then loaded into a network built from the *installed*
+# library's current code. Nothing unpickled is ever executed. Two small,
+# scoped shims bridge names that moved since the checkpoints were saved
+# (timm.models.layers.* -> timm.layers.*, smp's DecoderBlock ->
+# UnetDecoderBlock), and they are installed only for the duration of a load.
+#
+# Verified working against smp 0.4.0 + timm 0.9.16 and smp 0.5.0 + timm 1.0.28.
+# If a future release breaks it, the loader says exactly which name moved.
+#
+# The <2.9 ceiling is a Windows path-length constraint, not a compatibility
+# one. torch 2.9+ ships a licence tree
+# (torch-*.dist-info/licenses/third_party/flash-attention/third_party/aiter/
+#  3rdparty/composable_kernel/docs) deep enough that, unpacked under this
+# project's already-long path, it exceeds the 260-character MAX_PATH limit.
+# pip fails mid-install with WinError 206 and leaves a torch that cannot even
+# be uninstalled cleanly. Raise the ceiling only after enabling long paths:
+#
+#     Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+#         -Name LongPathsEnabled -Value 1     # admin, then reboot
+torch>=2.6,<2.9
+segmentation-models-pytorch>=0.4
+timm>=0.9

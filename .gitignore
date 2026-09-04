@@ -1,0 +1,67 @@
+# =========================================================================
+#  Cancer Scoring System - what stays out of git
+#
+#  The sub-projects carry their own .gitignore for the artefacts they
+#  generate. This file covers the whole tree and the things that are big,
+#  regenerable, or not ours to redistribute.
+#
+#  Everything ignored here is put back by `python setup.py`.
+# =========================================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node ---
+node_modules/
+dist/
+.eslintcache
+.env.local
+*.local
+
+# --- Model weights -------------------------------------------------------
+# ~2.2 GB, and licence-encumbered: GrandQC is CC BY-NC, BEETLE is CC BY-NC-SA,
+# and the trained tissue_type checkpoints inherit those terms through their
+# training data. models.lock.json records the bytes and sha256 of each one and
+# setup.py fetches and verifies them. The .manifest.json files beside the
+# checkpoints ARE committed - see Breast_Cancer_IHC_Tissue_Scoring_Demo/models/.gitignore.
+*.pth
+*.ckpt
+*.pt
+!**/*.manifest.json
+
+# --- Slides, tiles and everything derived from them ----------------------
+# Whole-slide images dominate the tree by two orders of magnitude, and uploads
+# belong to whoever dropped them on a local demo.
+data/
+images/
+uploads/
+
+# --- Reference PDFs ------------------------------------------------------
+# Two 162 MB scans of the same source document.
+*.pdf
+
+# --- Third-party checkout ------------------------------------------------
+# Upstream GrandQC, cloned for reference rather than vendored. Not our code,
+# and not needed once models/grandqc/ is populated.
+#   python setup.py --clone-grandqc
+grandqc/
+
+# --- OS ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Superseded nested repository ----------------------------------------
+# The Demo folder was its own repo before this tree became one. Its .git was
+# renamed rather than deleted, so those 2 commits stay recoverable; it is not
+# part of this history. Delete the directory once you are sure you want it gone.
+.git.disabled-*/

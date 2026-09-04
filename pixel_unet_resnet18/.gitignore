@@ -1,0 +1,11 @@
+# The tile pairs this pipeline cuts. ~900 MB, regenerable in ~20 min from the shared
+# regions by scripts/01_export_seg_tiles.py, and derived from non-commercial masks.
+data/seg_tiles/
+
+# Training checkpoints: ~170 MB each, and they carry optimiser state.
+data/checkpoints/
+
+reports/*.json
+__pycache__/
+*.pyc
+.pytest_cache/

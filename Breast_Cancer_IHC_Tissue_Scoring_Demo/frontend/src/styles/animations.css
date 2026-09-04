@@ -1,0 +1,254 @@
+/* ============================================================================
+   Animation layer.
+
+   Every motion in the app is defined here as a named keyframe plus a utility
+   class, so components stay declarative and the whole system can be muted at
+   once by `prefers-reduced-motion`.
+   ========================================================================== */
+
+/* --- Entrances ------------------------------------------------------------ */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes rise-in-sm {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-24px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translate3d(24px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes reveal-clip {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* --- Loops / ambience ----------------------------------------------------- */
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(56, 189, 248, 0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -220% 0;
+  }
+  to {
+    background-position: 220% 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(2%, -3%, 0);
+  }
+}
+
+@keyframes aurora {
+  0% {
+    transform: translate3d(-6%, -4%, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(5%, 3%, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-3%, 6%, 0) scale(0.96);
+  }
+  100% {
+    transform: translate3d(-6%, -4%, 0) scale(1);
+  }
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+/* --- SVG draw-in ---------------------------------------------------------- */
+
+@keyframes draw-stroke {
+  from {
+    stroke-dashoffset: var(--dash, 1200);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes grow-bar {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes grow-bar-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes count-up-mask {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 60%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* --- Utility classes ------------------------------------------------------ */
+
+.anim-fade {
+  animation: fade-in var(--dur-base) var(--ease-out) both;
+}
+
+.anim-rise {
+  animation: rise-in var(--dur-slow) var(--ease-out) both;
+}
+
+.anim-rise-sm {
+  animation: rise-in-sm var(--dur-base) var(--ease-out) both;
+}
+
+.anim-left {
+  animation: slide-in-left var(--dur-slow) var(--ease-out) both;
+}
+
+.anim-right {
+  animation: slide-in-right var(--dur-slow) var(--ease-out) both;
+}
+
+.anim-pop {
+  animation: pop-in var(--dur-base) var(--ease-spring) both;
+}
+
+.anim-reveal {
+  animation: reveal-clip var(--dur-slower) var(--ease-out) both;
+}
+
+.anim-spin {
+  animation: spin 900ms linear infinite;
+}
+
+/* Stagger helper — set `--i` on each child to cascade its entrance. */
+.stagger > * {
+  animation-delay: calc(var(--stagger-step, 60ms) * var(--i, 0));
+}
+
+/* Skeleton shimmer used while the API is being reached. */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-elevated) 8%,
+    var(--bg-hover) 24%,
+    var(--bg-elevated) 40%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

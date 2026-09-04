@@ -1,0 +1,494 @@
+/* ============================================================================
+   Step 6 — colour deconvolution.
+
+   Two visual rules run through this file.
+
+   **Each stain owns its own colour, and it is the dye's own.** Blue for
+   haematoxylin, brown for DAB, everywhere: on the panel labels, on the fork's two
+   arms, on anything that names one of the two channels. The server's heatmaps use
+   the same two hues, so a reader never has to hold a legend in their head to know
+   which picture or which arm is which. The app's accent cyan is deliberately not
+   used for either — it belongs to the interactive controls, and a stain that
+   shared it would be mistaken for a control.
+
+   **The comparison is the loudest thing on the page.** Step 6's whole argument is
+   two numbers that ought to be the same and are not, so the two toggle cards are
+   equal in size, equal in weight, and their scores are set at the largest type on
+   the screen. Nothing else here competes with them: the checks are a plain list
+   and the vector arithmetic is inside a closed disclosure. A layout that made
+   either score smaller than the other would answer the question the screen is
+   supposed to ask.
+   ========================================================================== */
+
+.cd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  text-align: left;
+}
+
+/* --- 1. The headline ------------------------------------------------------ */
+
+.cd-headline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.cd-headline__lead {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-base);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.cd-headline__lead strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.cd-headline__figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.cd-headline__figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.cd-headline__value {
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.cd-headline__caption {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.cd-headline__sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* --- 2. The four pictures ------------------------------------------------- */
+
+/* Four equal columns, wrapping to two and then one. The order carries the
+   argument — mixed, blue, brown, left over — so they must never reflow into a
+   grid a reader might take in a different order. */
+.cd-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 1080px) {
+  .cd-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .cd-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cd-strip__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+
+.cd-strip__frame {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-void);
+}
+
+.cd-strip__frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* The panels are pixel data, not artwork: a browser's smoothing at display
+     size would invent gradients between measured values. */
+  image-rendering: pixelated;
+}
+
+.cd-strip__item figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cd-strip__step {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.cd-strip__item figcaption strong {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* The stain's own colour on its own label. See the file header. */
+.cd-strip__label--h {
+  color: var(--stain-hematoxylin) !important;
+}
+
+.cd-strip__label--dab {
+  color: var(--stain-dab) !important;
+}
+
+.cd-strip__caption {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* --- Shared card shell ---------------------------------------------------- */
+
+.cd-card,
+.cd-fork,
+.cd-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.cd-card__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.cd-card__lead {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.cd-card__lead strong {
+  color: var(--text-primary);
+}
+
+.cd-card__note {
+  margin: 0;
+  max-width: 82ch;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+.cd-card__note strong {
+  color: var(--text-secondary);
+}
+
+/* --- 3. The fork ---------------------------------------------------------- */
+
+.cd-fork__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+/* The left border is the arm's stain colour, so the two destinations are
+   distinguishable at a glance and match the panels above them. */
+.cd-fork__arm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.cd-fork__arm p {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.cd-fork__tag {
+  align-self: flex-start;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.cd-fork__tag--h {
+  color: var(--stain-hematoxylin);
+  background: rgba(74, 95, 193, 0.14);
+}
+
+.cd-fork__tag--dab {
+  color: var(--stain-dab);
+  background: rgba(181, 121, 63, 0.16);
+}
+
+/* --- 4. The choice that changes the answer -------------------------------- */
+
+/* Two equal cards, and equal is load-bearing: this is a comparison the reader has
+   to be able to make without deciding which side the layout prefers. */
+.cd-toggle {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-2) 0;
+}
+
+.cd-toggle__pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.cd-toggle__pick:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.cd-toggle__pick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cd-toggle__pick.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.cd-toggle__name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* The largest type on the screen. The two scores are the argument. */
+.cd-toggle__score {
+  font-size: var(--text-3xl);
+  line-height: 1;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
+.cd-toggle__sub {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.cd-toggle__pick.is-active .cd-toggle__sub {
+  color: var(--text-secondary);
+}
+
+.cd-card__verdict {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-md);
+  background: var(--warn-soft);
+  max-width: 82ch;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.cd-card__verdict strong {
+  color: var(--text-primary);
+}
+
+/* --- 5. The checks -------------------------------------------------------- */
+
+.cd-checks__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cd-checks__list li {
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--border-default);
+  max-width: 88ch;
+  font-size: var(--text-xs);
+  line-height: 1.75;
+  color: var(--text-muted);
+}
+
+.cd-checks__list strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* --- 6. The detail, folded away ------------------------------------------- */
+
+/* Closed by default. Everything inside is the justification for figures already
+   stated above in plain words, so a reader who does not open it has still been
+   told the result — and one who does is not being shown anything different. */
+.cd-detail {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+}
+
+.cd-detail > summary {
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.cd-detail > summary::-webkit-details-marker {
+  display: none;
+}
+
+.cd-detail > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: var(--space-2);
+  color: var(--text-faint);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.cd-detail[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.cd-detail > summary:hover {
+  color: var(--text-primary);
+}
+
+.cd-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+.cd-detail__intro {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.cd-detail__notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cd-detail__notes li {
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--border-subtle);
+  max-width: 92ch;
+  font-size: var(--text-xs);
+  line-height: 1.75;
+  color: var(--text-muted);
+}
+
+/* Scrolls inside its own box rather than widening the page. */
+.cd-detail__table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.cd-detail__table caption {
+  margin-bottom: var(--space-2);
+  text-align: left;
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+}
+
+.cd-detail__table th,
+.cd-detail__table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.cd-detail__table thead th {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.cd-detail__table tbody th {
+  text-align: left;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.cd-detail__foot {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-faint);
+}
+
+/* --- The citation --------------------------------------------------------- */
+
+.cd-citation {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-faint);
+}

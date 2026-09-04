@@ -1,0 +1,181 @@
+{
+  "_comment": [
+    "Every model checkpoint the project needs, with the bytes and sha256 that",
+    "prove a download arrived intact, and where each one comes from.",
+    "",
+    "Weights are NOT in git. GrandQC is CC BY-NC and BEETLE is CC BY-NC-SA, so",
+    "this repository has no right to redistribute either, and the trained",
+    "tissue_type checkpoints inherit those terms through their training data.",
+    "setup.py reads this file, fetches what is missing, and verifies what it",
+    "fetched. Run `python setup.py --check` to audit without downloading.",
+    "",
+    "role:  runtime  = the web app cannot run step 2 or step 8 without it",
+    "       optional = an alternate or ablation checkpoint; the app runs without it",
+    "       training = only needed to retrain, never loaded when serving",
+    "",
+    "hash:  published    = the upstream archive serves these exact bytes.",
+    "       local-resave = produced locally by torch.save, so the hash belongs to",
+    "       this copy rather than to a published asset. setup accepts a byte-size",
+    "       match with a warning, because a fresh torchvision re-save is not",
+    "       byte-reproducible across torch versions."
+  ],
+
+  "models_root": "Breast_Cancer_IHC_Tissue_Scoring_Demo/models",
+  "drive_folder": null,
+
+  "files": [
+    {
+      "path": "grandqc/td/Tissue_Detection_MPP10.pth",
+      "bytes": 26640273,
+      "sha256": "0e3577628a553774419a5b87a2947531988e07175b9e1a8048f53b6188f4d76e",
+      "md5": "25ccb2592f5d44b4f30143501390e078",
+      "hash": "published",
+      "role": "runtime",
+      "licence": "CC BY-NC 4.0",
+      "used_by": "step 2 - tissue detection",
+      "sources": [
+        {"kind": "url", "url": "https://zenodo.org/records/14507273/files/Tissue_Detection_MPP10.pth?download=1"},
+        {"kind": "drive", "name": "Tissue_Detection_MPP10.pth"}
+      ]
+    },
+    {
+      "path": "grandqc/qc/GrandQC_MPP15.pth",
+      "bytes": 25384377,
+      "sha256": "6e90ec8548d4050734c30e30d5ca7fe67e84b59b1dd8ae338447dad90bae4ff1",
+      "md5": "005c8f4ce99ea1bbb8f00a9dd397574b",
+      "hash": "published",
+      "role": "runtime",
+      "licence": "CC BY-NC-SA 4.0",
+      "used_by": "step 2 - artefact segmentation at 7x (QC_MODEL_MPP=1.5, the default)",
+      "sources": [
+        {"kind": "url", "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP15.pth?download=1"},
+        {"kind": "drive", "name": "GrandQC_MPP15.pth"}
+      ]
+    },
+    {
+      "path": "grandqc/qc/GrandQC_MPP2.pth",
+      "bytes": 25366841,
+      "sha256": "703d21cb3cac5b0797b145ca55428f21ab25bad18e3738ed8a3b6d42bbfcb61c",
+      "md5": "1844b220750c19bda6a256ff996c2cfb",
+      "hash": "published",
+      "role": "optional",
+      "licence": "CC BY-NC-SA 4.0",
+      "used_by": "step 2 at 5x - roughly twice as fast as 7x",
+      "sources": [
+        {"kind": "url", "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP2.pth?download=1"},
+        {"kind": "drive", "name": "GrandQC_MPP2.pth"}
+      ]
+    },
+    {
+      "path": "grandqc/qc/GrandQC_MPP1.pth",
+      "bytes": 25366841,
+      "sha256": "cda7506dbb2e21be1410077d4f55632e7073fe068cf318df8fbc185a66806ecf",
+      "md5": "ece5ac9967ec4d4320465ce0241de97f",
+      "hash": "published",
+      "role": "optional",
+      "licence": "CC BY-NC-SA 4.0",
+      "used_by": "step 2 at 10x - most accurate, slowest",
+      "sources": [
+        {"kind": "url", "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP1.pth?download=1"},
+        {"kind": "drive", "name": "GrandQC_MPP1.pth"}
+      ]
+    },
+
+    {
+      "path": "tissue_type/invasive_tile_v2_imagenet_std.pt",
+      "bytes": 44792651,
+      "sha256": "80b58179b5aa9d35cde2189086b2f98283ea80c1c0a0e0ea5ba2936440f81ee6",
+      "hash": "published",
+      "role": "runtime",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0)",
+      "used_by": "step 8 - the default checkpoint (config.tissue_type_model)",
+      "retrain_with": "bcss_bracs_hchannel_resnet18: scripts/04_train.py then scripts/05_publish.py",
+      "sources": [
+        {"kind": "drive", "name": "invasive_tile_v2_imagenet_std.pt"}
+      ]
+    },
+    {
+      "path": "tissue_type/invasive_tile_v1_imagenet_std.pt",
+      "bytes": 44792651,
+      "sha256": "1903fd9e111f8702448b8452d89090f06bbe60f0ce7113844af4db85248c8460",
+      "hash": "published",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0)",
+      "used_by": "step 8 - the v1 source split, superseded by v2",
+      "retrain_with": "bcss_bracs_hchannel_resnet18: scripts/04_train.py then scripts/05_publish.py",
+      "sources": [
+        {"kind": "drive", "name": "invasive_tile_v1_imagenet_std.pt"}
+      ]
+    },
+    {
+      "path": "tissue_type/invasive_tile_v1_simclr_std.pt",
+      "bytes": 44792395,
+      "sha256": "8b92a61709d5dc74c7a8801ac55476d64df7ea8ffc79524e2207285ab1b790fa",
+      "hash": "published",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0)",
+      "used_by": "step 8 - SimCLR backbone variant",
+      "retrain_with": "bcss_bracs_hchannel_resnet18: scripts/04_train.py --init simclr",
+      "sources": [
+        {"kind": "drive", "name": "invasive_tile_v1_simclr_std.pt"}
+      ]
+    },
+    {
+      "path": "tissue_type/invasive_tile_v1_imagenet.pt",
+      "bytes": 44792139,
+      "sha256": "87ced9485cf202a12cbe0a4b62390a50152f6f578dd0d995d6d867383df3e626",
+      "hash": "published",
+      "role": "optional",
+      "licence": "CC0 + BSD-3 - the commercially clean checkpoint",
+      "used_by": "step 8 - BCSS only; cannot separate in-situ from invasive",
+      "retrain_with": "bcss_bracs_hchannel_resnet18: scripts/04_train.py without --include-dcis",
+      "sources": [
+        {"kind": "drive", "name": "invasive_tile_v1_imagenet.pt"}
+      ]
+    },
+
+    {
+      "path": "tissue_type/pretrained/pytorchnative_tenpercent_resnet18.ckpt",
+      "bytes": 46104139,
+      "sha256": "ae652d1a586c1be11b8ed7f4033094a98ac9c620e43a28998c6c86d248e750ab",
+      "hash": "published",
+      "role": "training",
+      "licence": "MIT",
+      "used_by": "training only - SimCLR backbone init (Ciga et al. 2022)",
+      "note": "Take this native state_dict, NOT tenpercent_resnet18.ckpt (92,148,628 bytes), which is a Lightning checkpoint and needs weights_only=False to load.",
+      "sources": [
+        {"kind": "url", "url": "https://github.com/ozanciga/self-supervised-histopathology/releases/download/nativetenpercent/pytorchnative_tenpercent_resnet18.ckpt"},
+        {"kind": "drive", "name": "pytorchnative_tenpercent_resnet18.ckpt"}
+      ]
+    },
+    {
+      "path": "tissue_type/pretrained/resnet18-imagenet.pth",
+      "bytes": 46829803,
+      "sha256": "dc1c4d3f57869f5a1f3c9ba7b35511534cc0d35620fdc625b24ef81014d0d240",
+      "hash": "local-resave",
+      "role": "training",
+      "licence": "BSD-3",
+      "used_by": "training only - ImageNet backbone init",
+      "note": "Not a published asset. Produced by torch.save of ResNet18_Weights.IMAGENET1K_V1.get_state_dict(); see bcss_bracs_hchannel_resnet18/src/models.py, vendor_imagenet_weights.",
+      "sources": [
+        {"kind": "torchvision", "weights": "ResNet18_Weights.IMAGENET1K_V1"},
+        {"kind": "drive", "name": "resnet18-imagenet.pth"}
+      ]
+    },
+
+    {
+      "path": "beetle/model.zip",
+      "bytes": 1857390015,
+      "sha256": "ef16c64536694d8aa51bb9d974d0d9412f6a1d76e5bed35c92b593d9dc9c933d",
+      "md5": "c1c82ed123484cd8760b6343feeee14f",
+      "hash": "published",
+      "role": "training",
+      "licence": "CC BY-NC-SA 4.0",
+      "used_by": "training only - the BEETLE nnU-Net teacher that labelled the BRACS in-situ tiles. The web app never loads this. 1.8 GB.",
+      "sources": [
+        {"kind": "url", "url": "https://zenodo.org/records/16812932/files/model.zip?download=1"},
+        {"kind": "drive", "name": "model.zip"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1537 @@
+/* ============================================================================
+   Step 5 — optical density.
+
+   Three visual rules run through this file.
+
+   **No rainbow, anywhere.** A density is an ordered quantity, and a multi-hue
+   ramp invents boundaries the data does not have — a reader takes the green band
+   for a feature when it is an artefact of the palette. Both server-rendered
+   heatmaps are single progressions, and every scale drawn here in CSS follows
+   them.
+
+   **Solid is measured, dashed is published.** The scatter's whole content is the
+   coincidence between an arm this slide produced and a vector Ruifrok published,
+   so the two must never be confusable. Solid accent strokes are measurements from
+   the reader's slide; dashed pale strokes are constants from the literature. That
+   distinction is carried by the stroke rather than by a legend, because a legend
+   can be mislaid halfway down a long page.
+
+   **The step's own colour is the accent, and the arms own it.** Step 3 tints
+   tissue green and step 4 marks glass green; step 5 has nothing to tint, so the
+   accent cyan is reserved for the two arms and the chosen tile — the two things
+   this step decides. Amber and red keep their app-wide meaning: something the
+   reader should be suspicious of, and something that is not a measurement at all.
+   Violet is the one new tint, for pixels excluded as too dark, and it is new
+   because a reader would otherwise assume "excluded" meant "faint".
+   ========================================================================== */
+
+.od {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  text-align: left;
+}
+
+/* Marks a section whose figures belong to the tile currently on screen, so that
+   picking a new one visibly invalidates them. Applied to the wrappers rather
+   than to `.od` itself, because two things on the page are *not* stale during a
+   pick: the tile chooser, whose thumbnails are the same twelve blocks whichever
+   one is chosen, and the standing line inside it, which is the one element that
+   describes the request in flight. Dimming those would hide the only live
+   controls at the exact moment the reader is using them.
+
+   The wrappers are `display: contents` so they change nothing about the layout
+   when idle - `.od` is a flex column, and a plain div would become a flex item
+   and swallow the section's own margins. */
+.od-stale {
+  display: contents;
+}
+
+/* Declared on the idle state too, so the figures fade back in when the new
+   report lands rather than snapping. */
+.od-stale > *,
+.od-headline {
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.od--refining .od-stale > *,
+.od--refining .od-headline {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* --- 1. The headline ------------------------------------------------------ */
+
+.od-headline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+/* Flex and not grid, and `align-items: start` on both children: a grid row is as
+   tall as its tallest cell, so the equation column would be padded out with dead
+   space by the two figure cards beside it. */
+.od-headline__top {
+  display: flex;
+  gap: var(--space-5);
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.od-headline__equation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.od-headline__formula {
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.od-headline__i0 {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* No tint, no blend: the chip *is* step 4's measurement, and styling the colour
+   would be styling the data. The ring keeps a near-white square legible. */
+.od-headline__chip {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 0 1px var(--border-default);
+}
+
+.od-headline__figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-4);
+  align-content: start;
+  flex: 1 1 340px;
+  max-width: 42rem;
+}
+
+.od-headline__figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.od-headline__figure--muted {
+  opacity: 0.82;
+}
+
+.od-headline__value {
+  font-size: var(--text-2xl);
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.od-headline__figure--muted .od-headline__value {
+  color: var(--text-primary);
+}
+
+.od-headline__caption {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.od-headline__sub {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.od-headline__why {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+  max-width: 88ch;
+}
+
+/* --- 2. The triptych ----------------------------------------------------- */
+
+.od-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.od-strip--stale {
+  opacity: 0.45;
+}
+
+/* The scatter earns more width than the two images: it is a plot with labels in
+   it, and the guide calls it the panel that makes the next step obvious. */
+.od-strip__item--wide {
+  grid-column: span 2;
+}
+
+@media (max-width: 900px) {
+  .od-strip__item--wide {
+    grid-column: span 1;
+  }
+}
+
+.od-strip__item {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.od-strip__frame {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.od-strip__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.od-strip__frame--plot {
+  padding: var(--space-3);
+}
+
+.od-strip__empty {
+  display: flex;
+  align-items: center;
+  min-height: 220px;
+  padding: var(--space-5);
+}
+
+.od-strip__empty p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+.od-strip__item figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.od-strip__step {
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
+.od-strip__caption {
+  font-size: var(--text-xs);
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+/* --- The scatter --------------------------------------------------------- */
+
+.od-scatter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.od-scatter--stale {
+  opacity: 0.5;
+}
+
+/* The PNG and the SVG have to share one box exactly, or a labelled arm would sit
+   somewhere other than the arm drawn into the image. */
+/* Capped rather than filling its column. Left to grow it reached 1,080 px square
+   and pushed everything after it a screen and a half down the page - and a plot
+   whose subject is an *angle* gains nothing from more pixels once the wedge is
+   legible. */
+.od-scatter__frame {
+  position: relative;
+  aspect-ratio: 1;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-void);
+}
+
+.od-scatter__cloud,
+.od-scatter__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Nearest-neighbour on purpose. The cloud is a two-dimensional histogram, so a
+   bin is a fact about the data; smoothing between bins under upscaling would draw
+   density that was never counted. */
+.od-scatter__cloud {
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* Measured on this slide: solid, and in the step's own accent. */
+.od-scatter__arm line {
+  stroke: var(--accent);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Published: dashed, pale, and thinner. */
+.od-scatter__reference line {
+  stroke: rgba(232, 238, 248, 0.62);
+  stroke-width: 0.4;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.od-scatter__reference text {
+  font-family: var(--font-mono);
+  font-size: 3.4px;
+  fill: var(--text-secondary);
+  text-anchor: middle;
+}
+
+.od-scatter__origin {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.od-scatter__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.od-scatter__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.od-scatter__key::before {
+  content: '';
+  width: 18px;
+  height: 0;
+  border-top: 2px solid currentColor;
+}
+
+.od-scatter__key--arm {
+  color: var(--accent);
+}
+
+.od-scatter__key--reference::before {
+  border-top-style: dashed;
+}
+
+.od-scatter__key--origin::before {
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-full);
+}
+
+/* --- The angular histogram ---------------------------------------------- */
+
+.od-angles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.od-angles__plot {
+  width: 100%;
+  height: 56px;
+}
+
+.od-angles__plot rect {
+  fill: var(--accent);
+  opacity: 0.55;
+}
+
+.od-angles__axis {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.od-angles__mid {
+  color: var(--text-muted);
+}
+
+.od-angles__note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+/* --- 3. The arm verdict -------------------------------------------------- */
+
+/* Every figure on this card is also drawn - see ArmVerdict.tsx. The rules below
+   are those drawings: a swatch pair, a fixed-scale gauge, one split bar, and the
+   two wedges over one another. */
+
+.od-arms,
+.od-tiles,
+.od-limits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.od-arms__head,
+.od-tiles__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.od-arms__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.od-arm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+/* An arm that landed on a stain the assay actually uses. The only positive
+   signal on this card, so it gets the success tint and nothing else does. */
+.od-arm--on {
+  border-color: rgba(52, 211, 153, 0.38);
+  background: linear-gradient(var(--success-soft), var(--success-soft)), var(--bg-inset);
+}
+
+/* The claim as two colours. Butted together with no gap on purpose: a mismatch
+   shows as a visible seam, and a matching pair reads as one block. */
+.od-arm__swatches {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.od-arm__chip {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  border-right: none;
+}
+
+.od-arm__chip--reference {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-right: 1px solid var(--border-strong);
+  border-left: 1px dashed var(--border-strong);
+}
+
+.od-arm__swatch-key {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+}
+
+.od-arm__swatch-sep {
+  color: var(--border-strong);
+}
+
+.od-arm__claim {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.od-arm__degrees {
+  font-size: var(--text-2xl);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.od-arm__from {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.od-arm__scale {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.od-arm__vector {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* --- The match gauge ----------------------------------------------------- */
+
+/* A fixed 0-45 degree scale shared by every gauge on the card, so two markers
+   can be compared by position instead of by arithmetic. */
+.od-gauge {
+  position: relative;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+/* Where an arm is close enough to call a match. An extent, not a verdict - the
+   badge above turns on which reference is nearest, not on this band. */
+.od-gauge__band {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background: var(--success-soft);
+  border-right: 1px solid rgba(52, 211, 153, 0.45);
+}
+
+.od-gauge__mark {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  transform: translate(-50%, -50%);
+}
+
+.od-gauge__mark--on {
+  background: var(--success);
+}
+
+.od-gauge__mark--off {
+  background: var(--warn);
+}
+
+/* --- The split bar ------------------------------------------------------- */
+
+.od-split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.od-split__bar {
+  display: flex;
+  height: 14px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+.od-split__seg {
+  display: block;
+  min-width: 2px;
+}
+
+.od-split__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.od-split__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.od-split__key i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.od-split__key strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- The wedge ----------------------------------------------------------- */
+
+.od-wedge {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.od-wedge__figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.od-wedge__svg {
+  width: 100%;
+  height: auto;
+  color: var(--text-muted);
+}
+
+.od-wedge__figure figcaption {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+.od-wedge__fill {
+  fill: var(--accent);
+  fill-opacity: 0.1;
+}
+
+/* What "wider than the published pair" is, as an area. */
+.od-wedge__excess {
+  fill: var(--warn);
+  fill-opacity: 0.22;
+}
+
+.od-wedge__arm {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.od-wedge__ref {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.od-wedge__apex {
+  fill: var(--bg-inset);
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.od-wedge__label {
+  fill: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.od-wedge__label--dim {
+  fill: var(--text-faint);
+}
+
+.od-wedge__read {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.od-wedge__read p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.od-causes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  counter-reset: cause;
+}
+
+.od-causes li {
+  position: relative;
+  padding-left: var(--space-5);
+  font-size: var(--text-xs);
+  line-height: 1.65;
+  color: var(--text-muted);
+  counter-increment: cause;
+}
+
+.od-causes li::before {
+  content: counter(cause);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.od-causes__what {
+  display: block;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+/* The cause the step has already dealt with, and by how much. */
+.od-causes__handled {
+  display: inline-block;
+  margin-top: var(--space-1);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: var(--success-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+/* --- The references ------------------------------------------------------ */
+
+.od-refs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.od-refs__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+}
+
+.od-refs__col {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+/* The row spans the grid and inherits its columns, so the header labels and the
+   cells under them cannot drift apart. */
+.od-refs__row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: var(--space-4);
+  align-items: center;
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.od-refs__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.od-refs__chip {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 3px;
+  border: 1px solid var(--border-strong);
+}
+
+.od-refs__tag {
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-faint);
+}
+
+.od-refs__angle,
+.od-refs__plane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.od-refs__meter {
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.od-refs__meter i {
+  display: block;
+  height: 100%;
+  background: var(--text-muted);
+}
+
+.od-refs__plane-read {
+  color: var(--text-faint);
+}
+
+.od-refs__note,
+.od-arms__rule {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.od-arms__rule {
+  padding: var(--space-4);
+  border-left: 2px solid var(--warn);
+  background: var(--warn-soft);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.od-arms__foot {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+@media (max-width: 860px) {
+  .od-wedge {
+    grid-template-columns: 1fr;
+  }
+
+  .od-refs__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .od-refs__col {
+    display: none;
+  }
+
+  .od-refs__row {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+}
+
+/* --- 4. The tile chooser ------------------------------------------------- */
+
+.od-tiles__reset {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.od-tiles__reset:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.od-tiles__reset:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The map and the prose only. The sheet used to live in the right column and the
+   two never balanced - twelve photographs are much taller than the map beside
+   them, so the left column ran out of content and left a hole under it. */
+.od-tiles__body {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.55fr) minmax(0, 1.45fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .od-tiles__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.od-tiles__map {
+  position: relative;
+  align-self: start;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-inset);
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.od-tiles__map--stale {
+  opacity: 0.5;
+}
+
+.od-tiles__map img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.od-tiles__hits {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Hit targets over the server's own boxes. Transparent by default so the drawn
+   picture is what the reader sees, and only the hover state is CSS. */
+.od-tiles__hit {
+  fill: transparent;
+  stroke: transparent;
+  cursor: pointer;
+}
+
+.od-tiles__hit:hover,
+.od-tiles__hit:focus-visible {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+  outline: none;
+}
+
+.od-tiles__hit--chosen {
+  cursor: default;
+}
+
+.od-tiles__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.od-tiles__why,
+.od-tiles__gate {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.od-tiles__gate {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+/* --- The standing line -------------------------------------------------- */
+
+/* One line saying which block the whole screen is about, and the only place a
+   pick in flight is described in words. It sits above the sheet rather than
+   inside it because it is a statement about the *page*, not about a cell. */
+.od-tiles__standing {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--accent-glow);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--accent-soft);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-secondary);
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+
+.od-tiles__standing strong {
+  color: var(--accent);
+}
+
+.od-tiles__standing--busy {
+  border-left-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.od-tiles__spinner {
+  display: inline-block;
+  vertical-align: -1px;
+  margin-right: var(--space-2);
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--accent-glow);
+  border-top-color: var(--accent);
+  border-radius: var(--radius-full);
+  animation: spin 720ms linear infinite;
+}
+
+/* --- The contact sheet --------------------------------------------------- */
+
+/* `auto-fill` with a floor rather than a fixed column count: the sheet sits in
+   the right-hand column of a two-column body, and how many thumbnails fit is a
+   question about the window and not about there being twelve of them. Grid flows
+   in document order at every width, so restacking never reorders the rank. */
+.od-tiles__sheet {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--space-3);
+}
+
+.od-tiles__cell button {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.od-tiles__cell button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+
+.od-tiles__cell button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The selected cell, and the third of the three places the pick is visible. A
+   ring rather than a tint, because the thumbnail underneath is a photograph and
+   a colour wash over it would read as a property of the tissue. */
+.od-tiles__cell--chosen button {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  cursor: default;
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+/* The chosen cell is the only disabled one, and it is styled as selected rather
+   than as unavailable - so `:disabled` needs no dimming of its own. */
+.od-tiles__cell button:disabled {
+  cursor: default;
+}
+
+/* A pick is in flight, so the ring on the chosen cell describes the tile being
+   replaced rather than the one on its way. Held at half strength: dropping it
+   entirely would leave the sheet with nothing selected, which is not true
+   either. */
+.od-tiles__cell--waiting.od-tiles__cell--chosen button {
+  border-color: var(--border-strong);
+  background: transparent;
+  box-shadow: none;
+}
+
+.od-tiles__cell--waiting.od-tiles__cell--chosen .od-tiles__rank,
+.od-tiles__cell--waiting .od-tiles__flag {
+  background: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.od-tiles__thumb {
+  position: relative;
+  display: block;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-void);
+}
+
+/* `aspect-ratio` with the intrinsic width and height on the <img> keeps the
+   sheet's layout still while twelve PNGs arrive - without it the cells are text
+   height first and the page jolts down as each image lands. */
+.od-tiles__thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.od-tiles__rank {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  min-width: 1.25rem;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  background: rgba(6, 8, 13, 0.72);
+  font-size: var(--text-xs);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.od-tiles__cell--chosen .od-tiles__rank {
+  background: var(--accent-strong);
+  color: var(--bg-void);
+}
+
+.od-tiles__flag {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 2px var(--space-2);
+  background: var(--accent-strong);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--bg-void);
+}
+
+.od-tiles__figures {
+  font-size: var(--text-xs);
+  line-height: 1.3;
+}
+
+.od-tiles__bar {
+  display: block;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.od-tiles__bar span {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.od-tiles__cell--chosen .od-tiles__bar span {
+  opacity: 1;
+}
+
+.od-tiles__sheetnote {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+@media (max-width: 860px) {
+  .od-tiles__sheet {
+    grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .od-tiles__sheet {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A reader who has asked for less motion still needs to know a request is in
+   flight - the dimmed sheet and the wording say so without the spin. */
+@media (prefers-reduced-motion: reduce) {
+  .od-tiles__spinner {
+    animation: none;
+    border-top-color: var(--accent-glow);
+  }
+
+  .od-tiles__cell button:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+
+/* --- 5. Where it stops being a measurement ------------------------------ */
+
+/* Plain language, and three drawings that carry the numbers - see
+   DensityLimits.tsx. The mark colours are inline styles from `MARK` rather than
+   tokens, because the legend's job is to match the server's picture exactly. */
+
+.od-limits__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.od-limits__headline {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.od-limits__headline strong {
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- The pixel budget ---------------------------------------------------- */
+
+.od-budget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.od-budget__bar {
+  display: flex;
+  height: 16px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+.od-budget__seg {
+  display: block;
+}
+
+.od-budget__seg--used {
+  background: var(--accent);
+}
+
+.od-budget__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.od-budget__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.od-budget__key i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.od-budget__key-used {
+  background: var(--accent);
+}
+
+.od-budget__key strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- The map and the reasons beside it ----------------------------------- */
+
+.od-limits__body {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .od-limits__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.od-limits__panel {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.od-limits__panel img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.od-limits__panel figcaption {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+.od-limits__rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.od-reason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.od-reason:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* Swatch, share, colour name, then the plain sentence. The colour name is on
+   screen because "the violet ones" is how a reader will refer to them out loud. */
+.od-reason dt {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.od-reason__swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  flex: none;
+  align-self: center;
+}
+
+.od-reason__share {
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.od-reason__name {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-faint);
+}
+
+.od-reason__plain {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.od-reason dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-left: calc(11px + var(--space-2));
+}
+
+/* What happens to the pixel. The one line a reader must not skip, so it is the
+   brighter of the two. */
+.od-reason__does {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* Why it has to work that way. Deliberately quieter and smaller: reachable, and
+   skippable without losing the point of the panel. */
+.od-reason__why {
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-faint);
+}
+
+.od-limits__overlap {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.65;
+  color: var(--text-faint);
+}
+
+/* --- The signal scale ---------------------------------------------------- */
+
+.od-signal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+/* Zero to the tile's own 99th percentile. The floor is drawn as the band it is,
+   not as a line, because everything inside it is indistinguishable from glass. */
+.od-signal__scale {
+  position: relative;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(90deg, var(--bg-hover), var(--accent));
+  overflow: hidden;
+}
+
+.od-signal__floor {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  min-width: 2px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(248, 113, 113, 0.5) 0 3px,
+    rgba(248, 113, 113, 0.15) 3px 6px
+  );
+  border-right: 1px solid rgba(248, 113, 113, 0.8);
+}
+
+.od-signal__tick {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  transform: translateX(-50%);
+}
+
+.od-signal__tick--median {
+  background: var(--text-primary);
+}
+
+.od-signal__marks {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.od-signal__marks span {
+  display: flex;
+  flex-direction: column;
+}
+
+.od-signal__marks span:nth-child(2) {
+  text-align: center;
+}
+
+.od-signal__marks span:last-child {
+  text-align: right;
+}
+
+.od-signal__marks em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.od-signal p,
+.od-limits__roundtrip p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* --- The round trip ------------------------------------------------------ */
+
+.od-limits__roundtrip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: center;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+@media (max-width: 720px) {
+  .od-limits__roundtrip {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+}
+
+.od-limits__figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.od-limits__value {
+  font-size: var(--text-2xl);
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+}
+
+.od-limits__caption {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.od-limits__sub {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+/* --- 6. The citation ---------------------------------------------------- */
+
+.od-notes__citation {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-faint);
+}

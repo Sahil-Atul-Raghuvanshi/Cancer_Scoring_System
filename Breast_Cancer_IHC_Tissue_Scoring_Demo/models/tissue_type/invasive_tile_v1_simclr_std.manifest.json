@@ -1,0 +1,564 @@
+{
+  "arch": "resnet18",
+  "class_meaning": {
+    "invasive_epithelium": "invasive carcinoma - the only thing scored",
+    "non_epithelium": "stroma, fat, inflammation, necrosis, vessels - excluded (Rule 1)",
+    "non_invasive_epithelium": "DCIS, LCIS, normal ducts and lobules - excluded (Rule 5)"
+  },
+  "classes": [
+    "non_epithelium",
+    "non_invasive_epithelium",
+    "invasive_epithelium"
+  ],
+  "created": "2026-09-03T06:23:47+00:00",
+  "held_out_institutions": [
+    "E2",
+    "EW",
+    "GM",
+    "LL",
+    "OL",
+    "S3"
+  ],
+  "init": "simclr_ciga_tenpercent",
+  "input": {
+    "channel": "haematoxylin",
+    "gamma": 1.0,
+    "invert_polarity": false,
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "mpp": 0.5,
+    "normalisation": "imagenet",
+    "od_clip": 1.5,
+    "od_floor": 1.0,
+    "replicate_to_3ch": true,
+    "stain_basis": "ruifrok_hdab_fixed",
+    "standardise_floor": 0.1,
+    "standardise_target": 0.6,
+    "standardise_tile_p99": true,
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "tile_px": 224
+  },
+  "metrics": {
+    "ablation_no_class_weights": {
+      "accuracy": 0.8436298385029479,
+      "confusion": [
+        [
+          1785,
+          17,
+          226
+        ],
+        [
+          55,
+          223,
+          111
+        ],
+        [
+          124,
+          77,
+          1283
+        ]
+      ],
+      "dice_invasive_vs_non_invasive": 0.891591382904795
+    },
+    "final_loss": 0.47455719113349915,
+    "groupkfold_dice": {
+      "folds": [
+        0.839262187088274,
+        0.8615582743077914,
+        0.8536082474226804,
+        0.7149627623561273,
+        0.784
+      ],
+      "mean": 0.8106782942349747,
+      "sd": 0.05499452083561826
+    },
+    "held_out": {
+      "accuracy": 0.8182517303255575,
+      "by_source": {
+        "bcss": {
+          "accuracy": 0.8301146650573326,
+          "class_tiles": {
+            "invasive_epithelium": 1417,
+            "non_epithelium": 1888,
+            "non_invasive_epithelium": 9
+          },
+          "confusion": [
+            [
+              1613,
+              70,
+              205
+            ],
+            [
+              1,
+              7,
+              1
+            ],
+            [
+              103,
+              183,
+              1131
+            ]
+          ],
+          "invasive_recall": 0.7981651376146789,
+          "labels_drawn_by": "people",
+          "non_invasive_recall": 0.7777777777777778,
+          "per_class_dice": {
+            "invasive_epithelium": 0.8213507625272332,
+            "non_epithelium": 0.8948682385575589,
+            "non_invasive_epithelium": 0.05204460966542751
+          },
+          "tiles": 3314
+        },
+        "bracs_dcis": {
+          "accuracy": 0.7512776831345827,
+          "class_tiles": {
+            "invasive_epithelium": 67,
+            "non_epithelium": 140,
+            "non_invasive_epithelium": 380
+          },
+          "confusion": [
+            [
+              119,
+              18,
+              3
+            ],
+            [
+              24,
+              309,
+              47
+            ],
+            [
+              5,
+              49,
+              13
+            ]
+          ],
+          "invasive_recall": 0.19402985074626866,
+          "labels_drawn_by": "BEETLE (unreviewed)",
+          "non_invasive_recall": 0.8131578947368421,
+          "per_class_dice": {
+            "invasive_epithelium": 0.2,
+            "non_epithelium": 0.8263888888888888,
+            "non_invasive_epithelium": 0.8174603174603174
+          },
+          "tiles": 587
+        }
+      },
+      "by_tumour_content": [
+        {
+          "accuracy": 0.8248587570621468,
+          "bin": "0-5%",
+          "dice_invasive": 0.08695652173913043,
+          "tiles": 354
+        },
+        {
+          "accuracy": 0.8600746268656716,
+          "bin": "5-20%",
+          "dice_invasive": 0.6442953020134228,
+          "tiles": 536
+        },
+        {
+          "accuracy": 0.7755102040816326,
+          "bin": "20-50%",
+          "dice_invasive": 0.837037037037037,
+          "tiles": 1813
+        },
+        {
+          "accuracy": 0.8622704507512521,
+          "bin": ">50%",
+          "dice_invasive": 0.9030898876404494,
+          "tiles": 1198
+        }
+      ],
+      "confusion": [
+        [
+          1732,
+          88,
+          208
+        ],
+        [
+          25,
+          316,
+          48
+        ],
+        [
+          108,
+          232,
+          1144
+        ]
+      ],
+      "confusion_axes": {
+        "cols": "prediction",
+        "order": [
+          "non_epithelium",
+          "non_invasive_epithelium",
+          "invasive_epithelium"
+        ],
+        "rows": "truth"
+      },
+      "dice_invasive_vs_non_invasive": 0.8550074738415545,
+      "invasive_called_non_invasive": 232,
+      "invasive_recall": 0.77088948787062,
+      "macro_f1": 0.7665767182324165,
+      "non_invasive_called_invasive": 48,
+      "non_invasive_recall": 0.8123393316195373,
+      "per_class_dice": {
+        "invasive_epithelium": 0.7933425797503467,
+        "non_epithelium": 0.8898022090932443,
+        "non_invasive_epithelium": 0.6165853658536585
+      },
+      "per_slide_dice": {
+        "BRACS_1272": 0.0,
+        "BRACS_1283": 0.0,
+        "BRACS_1366": 0.0,
+        "BRACS_1487": 0.0,
+        "BRACS_1771": 0.0,
+        "BRACS_1826": 0.0,
+        "BRACS_1883": 0.0,
+        "BRACS_1903": 0.0,
+        "BRACS_1921": 0.0,
+        "BRACS_1923": 0.13333333333333333,
+        "BRACS_1928": 0.0,
+        "BRACS_1947": 0.2857142857142857,
+        "BRACS_752": 0.2,
+        "BRACS_753": 0.26666666666666666,
+        "BRACS_754": 0.26666666666666666,
+        "TCGA-A2-A0D0": 0.9951690821256038,
+        "TCGA-A2-A1G6": 0.4,
+        "TCGA-AR-A2LH": 0.3333333333333333,
+        "TCGA-E2-A14N": 0.9868421052631579,
+        "TCGA-E2-A14R": 0.8571428571428571,
+        "TCGA-E2-A14X": 0.9215686274509803,
+        "TCGA-E2-A150": 0.8857142857142857,
+        "TCGA-E2-A158": 0.0,
+        "TCGA-E2-A159": 0.967741935483871,
+        "TCGA-E2-A1AZ": 0.8,
+        "TCGA-E2-A1B6": 0.9302325581395349,
+        "TCGA-E2-A1L7": 0.75,
+        "TCGA-E2-A1LH": 0.8571428571428571,
+        "TCGA-E2-A1LI": 0.8543689320388349,
+        "TCGA-E2-A1LK": 0.9230769230769231,
+        "TCGA-E2-A1LL": 1.0,
+        "TCGA-E2-A1LS": 0.95,
+        "TCGA-E2-A573": 0.8571428571428571,
+        "TCGA-E2-A574": 0.7058823529411765,
+        "TCGA-EW-A1OV": 0.8709677419354839,
+        "TCGA-EW-A1OW": 0.9692307692307692,
+        "TCGA-EW-A1P1": 0.5454545454545454,
+        "TCGA-EW-A1P4": 0.9295774647887324,
+        "TCGA-EW-A1P7": 0.46153846153846156,
+        "TCGA-EW-A1P8": 0.9777777777777777,
+        "TCGA-EW-A1PB": 0.9090909090909091,
+        "TCGA-EW-A1PH": 1.0,
+        "TCGA-EW-A3U0": 0.9090909090909091,
+        "TCGA-EW-A6SB": 0.8115942028985508,
+        "TCGA-GM-A2DB": 0.9203539823008849,
+        "TCGA-GM-A2DD": 0.7931034482758621,
+        "TCGA-GM-A2DF": 0.4,
+        "TCGA-GM-A2DH": 0.2857142857142857,
+        "TCGA-GM-A2DI": 0.0,
+        "TCGA-GM-A3XL": 0.9841269841269841,
+        "TCGA-LL-A441": 0.9473684210526315,
+        "TCGA-LL-A73Y": 0.0,
+        "TCGA-LL-A740": 1.0,
+        "TCGA-OL-A5D6": 0.9090909090909091,
+        "TCGA-OL-A5D7": 1.0,
+        "TCGA-OL-A66I": 0.8888888888888888,
+        "TCGA-OL-A66P": 0.6274509803921569,
+        "TCGA-OL-A6VO": 0.42857142857142855,
+        "TCGA-OL-A97C": 0.9743589743589743,
+        "TCGA-S3-AA10": 0.5,
+        "TCGA-S3-AA15": 0.9333333333333333
+      },
+      "tiles": 3901
+    },
+    "init": "simclr",
+    "recipe": {
+      "epochs": 400,
+      "lr": 0.001,
+      "seed": 0,
+      "weight_decay": 0.0001
+    }
+  },
+  "name": "invasive_tile_v1_simclr_std",
+  "probe_tiles": [
+    {
+      "label": 0,
+      "logits": [
+        -0.182207,
+        -0.77442,
+        -0.327739
+      ],
+      "tile_id": "TCGA-A2-A0D0-DX1_xmin68482_ymin39071_MPP-0.2500__r010c005",
+      "tile_path": "non_epithelium\\TCGA-A2-A0D0-DX1_xmin68482_ymin39071_MPP-0.2500__r010c005.png"
+    },
+    {
+      "label": 0,
+      "logits": [
+        -1.587475,
+        -0.594929,
+        1.866306
+      ],
+      "tile_id": "TCGA-A2-A0D0-DX1_xmin68482_ymin39071_MPP-0.2500__r004c016",
+      "tile_path": "non_epithelium\\TCGA-A2-A0D0-DX1_xmin68482_ymin39071_MPP-0.2500__r004c016.png"
+    },
+    {
+      "label": 0,
+      "logits": [
+        1.599158,
+        -2.227488,
+        -0.545645
+      ],
+      "tile_id": "TCGA-E2-A1L7-DX1_xmin51554_ymin15424_MPP-0.2500__r004c009",
+      "tile_path": "non_epithelium\\TCGA-E2-A1L7-DX1_xmin51554_ymin15424_MPP-0.2500__r004c009.png"
+    },
+    {
+      "label": 0,
+      "logits": [
+        2.067696,
+        -2.310174,
+        -1.394019
+      ],
+      "tile_id": "TCGA-EW-A1OW-DX1_xmin36101_ymin49680_MPP-0.2500__r011c014",
+      "tile_path": "non_epithelium\\TCGA-EW-A1OW-DX1_xmin36101_ymin49680_MPP-0.2500__r011c014.png"
+    },
+    {
+      "label": 0,
+      "logits": [
+        0.094929,
+        0.404375,
+        -1.672399
+      ],
+      "tile_id": "TCGA-E2-A1LI-DX1_xmin44715_ymin18434_MPP-0.2500__r003c006",
+      "tile_path": "non_epithelium\\TCGA-E2-A1LI-DX1_xmin44715_ymin18434_MPP-0.2500__r003c006.png"
+    },
+    {
+      "label": 0,
+      "logits": [
+        1.150896,
+        -1.398157,
+        -0.914363
+      ],
+      "tile_id": "TCGA-EW-A1PH-DX1_xmin3455_ymin52049_MPP-0.2500__r009c002",
+      "tile_path": "non_epithelium\\TCGA-EW-A1PH-DX1_xmin3455_ymin52049_MPP-0.2500__r009c002.png"
+    },
+    {
+      "label": 0,
+      "logits": [
+        0.942298,
+        -1.539276,
+        -0.818847
+      ],
+      "tile_id": "TCGA-LL-A740-DX1_xmin39436_ymin24080_MPP-0.2500__r003c006",
+      "tile_path": "non_epithelium\\TCGA-LL-A740-DX1_xmin39436_ymin24080_MPP-0.2500__r003c006.png"
+    },
+    {
+      "label": 1,
+      "logits": [
+        -0.109987,
+        0.534176,
+        -1.742887
+      ],
+      "tile_id": "BRACS_1947_DCIS_10__r002c000",
+      "tile_path": "non_invasive_epithelium\\BRACS_1947_DCIS_10__r002c000.png"
+    },
+    {
+      "label": 1,
+      "logits": [
+        -1.02496,
+        1.436413,
+        -0.900997
+      ],
+      "tile_id": "BRACS_752_DCIS_5__r000c002",
+      "tile_path": "non_invasive_epithelium\\BRACS_752_DCIS_5__r000c002.png"
+    },
+    {
+      "label": 1,
+      "logits": [
+        -1.225585,
+        0.201461,
+        0.066372
+      ],
+      "tile_id": "BRACS_754_DCIS_7__r001c001",
+      "tile_path": "non_invasive_epithelium\\BRACS_754_DCIS_7__r001c001.png"
+    },
+    {
+      "label": 1,
+      "logits": [
+        -1.229633,
+        1.007453,
+        -0.438698
+      ],
+      "tile_id": "BRACS_1947_DCIS_5__r000c002",
+      "tile_path": "non_invasive_epithelium\\BRACS_1947_DCIS_5__r000c002.png"
+    },
+    {
+      "label": 1,
+      "logits": [
+        -0.835512,
+        -0.220801,
+        -0.075548
+      ],
+      "tile_id": "BRACS_1947_DCIS_5__r003c003",
+      "tile_path": "non_invasive_epithelium\\BRACS_1947_DCIS_5__r003c003.png"
+    },
+    {
+      "label": 1,
+      "logits": [
+        -0.670755,
+        0.071885,
+        -0.270138
+      ],
+      "tile_id": "BRACS_1947_DCIS_10__r000c000",
+      "tile_path": "non_invasive_epithelium\\BRACS_1947_DCIS_10__r000c000.png"
+    },
+    {
+      "label": 1,
+      "logits": [
+        -1.091446,
+        1.096087,
+        -0.702393
+      ],
+      "tile_id": "BRACS_754_DCIS_7__r003c001",
+      "tile_path": "non_invasive_epithelium\\BRACS_754_DCIS_7__r003c001.png"
+    },
+    {
+      "label": 2,
+      "logits": [
+        -1.608767,
+        -0.028621,
+        1.357097
+      ],
+      "tile_id": "TCGA-A2-A0D0-DX1_xmin68482_ymin39071_MPP-0.2500__r013c012",
+      "tile_path": "invasive_epithelium\\TCGA-A2-A0D0-DX1_xmin68482_ymin39071_MPP-0.2500__r013c012.png"
+    },
+    {
+      "label": 2,
+      "logits": [
+        -1.05561,
+        -1.237105,
+        1.400849
+      ],
+      "tile_id": "TCGA-OL-A5D7-DX1_xmin114443_ymin22490_MPP-0.2500__r003c013",
+      "tile_path": "invasive_epithelium\\TCGA-OL-A5D7-DX1_xmin114443_ymin22490_MPP-0.2500__r003c013.png"
+    },
+    {
+      "label": 2,
+      "logits": [
+        -0.934923,
+        0.024162,
+        -0.291992
+      ],
+      "tile_id": "TCGA-GM-A2DD-DX1_xmin47260_ymin22408_MPP-0.2500__r004c002",
+      "tile_path": "invasive_epithelium\\TCGA-GM-A2DD-DX1_xmin47260_ymin22408_MPP-0.2500__r004c002.png"
+    },
+    {
+      "label": 2,
+      "logits": [
+        -1.205178,
+        0.00776,
+        0.279873
+      ],
+      "tile_id": "TCGA-E2-A14X-DX1_xmin88836_ymin66393_MPP-0.2500__r010c004",
+      "tile_path": "invasive_epithelium\\TCGA-E2-A14X-DX1_xmin88836_ymin66393_MPP-0.2500__r010c004.png"
+    },
+    {
+      "label": 2,
+      "logits": [
+        -2.479434,
+        1.418588,
+        -0.053535
+      ],
+      "tile_id": "TCGA-GM-A2DH-DX1_xmin50963_ymin56303_MPP-0.2500__r007c002",
+      "tile_path": "invasive_epithelium\\TCGA-GM-A2DH-DX1_xmin50963_ymin56303_MPP-0.2500__r007c002.png"
+    },
+    {
+      "label": 2,
+      "logits": [
+        0.328649,
+        -0.126063,
+        -1.41863
+      ],
+      "tile_id": "TCGA-EW-A1P4-DX1_xmin17256_ymin35430_MPP-0.2500__r001c008",
+      "tile_path": "invasive_epithelium\\TCGA-EW-A1P4-DX1_xmin17256_ymin35430_MPP-0.2500__r001c008.png"
+    },
+    {
+      "label": 2,
+      "logits": [
+        -1.082631,
+        -1.211616,
+        1.26872
+      ],
+      "tile_id": "TCGA-E2-A14N-DX1_xmin21383_ymin66838_MPP-0.2500__r003c007",
+      "tile_path": "invasive_epithelium\\TCGA-E2-A14N-DX1_xmin21383_ymin66838_MPP-0.2500__r003c007.png"
+    }
+  ],
+  "provenance": {
+    "exporter_spec": {
+      "min_invasive": 0.5,
+      "min_non_epithelium": 0.8,
+      "min_non_invasive": 0.5,
+      "min_usable": 0.7,
+      "mpp": 0.5,
+      "stride": 224,
+      "stride_px": null,
+      "tile_px": 224,
+      "tile_um": 112.0,
+      "white_percentile": 99.0
+    },
+    "licences": {
+      "BCSS": "CC0 1.0",
+      "BEETLE nnU-Net (labels for data/dcis)": "CC BY-NC-SA 4.0 - NON-COMMERCIAL",
+      "BRACS (images behind data/dcis)": "non-commercial, research only",
+      "EFFECTIVE": "RESEARCH ONLY - the most restrictive term governs. Do not ship this checkpoint; the permissive one is trained without --include-dcis.",
+      "ciga simclr resnet18": "MIT",
+      "torchvision resnet18": "BSD-3"
+    },
+    "pretrained_sha256": "ae652d1a586c1be11b8ed7f4033094a98ac9c620e43a28998c6c86d248e750ab",
+    "tiles_manifest_sha256": "d33bec4d12c0cae1caddb20b70ff64dd82fcbde87d0f5353874a0524be1455d0",
+    "training_recipe": {
+      "epochs": 400,
+      "fitted_on": "cached frozen features",
+      "frozen_body": true,
+      "lr": 0.001,
+      "seed": 0,
+      "weight_decay": 0.0001
+    }
+  },
+  "sha256": "8b92a61709d5dc74c7a8801ac55476d64df7ea8ffc79524e2207285ab1b790fa",
+  "training_data": {
+    "borrowed_in_situ_class": {
+      "labels": "BEETLE released nnU-Net ensemble, CC BY-NC-SA 4.0 - MODEL-GENERATED, reviewed by no pathologist",
+      "patients": 77,
+      "per_class": {
+        "invasive_epithelium": 270,
+        "non_epithelium": 662,
+        "non_invasive_epithelium": 1843
+      },
+      "regions": 120,
+      "source": "BRACS DCIS regions of interest, non-commercial",
+      "source_mpp": 0.5,
+      "tiles": 2775,
+      "why": "BCSS supplies 9 non_invasive_epithelium tiles in the whole release and none in the held-out institutions, so class 1 could be neither fitted nor measured from it alone."
+    },
+    "licence_position": "RESEARCH ONLY. This checkpoint inherits BEETLE's ShareAlike and BRACS's non-commercial terms and must not be shipped. The permissive model is the one trained without --include-dcis.",
+    "note": "AICAN pseudo-labels (plan input B2) deferred: no H&E slide on disk. BCSS-only is a complete model - see docs/approach-1-training-plan.md Phase 5.",
+    "per_class": {
+      "invasive_epithelium": 5552,
+      "non_epithelium": 6097,
+      "non_invasive_epithelium": 1852
+    },
+    "pseudo_labels": true,
+    "regions_total": 150,
+    "regions_trained_on": 106,
+    "source": "BCSS (CC0 1.0) + BRACS regions labelled by BEETLE (CC BY-NC-SA 4.0, non-commercial)",
+    "tiles": 13501
+  }
+}

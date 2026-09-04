@@ -1,0 +1,244 @@
+{
+  "split": "train",
+  "folds": [
+    0
+  ],
+  "source_mpp": 0.25,
+  "regions": 30,
+  "cases": 30,
+  "failed": [],
+  "tiles_by_class": {
+    "non_epithelium": 10,
+    "non_invasive_epithelium": 148,
+    "invasive_epithelium": 35
+  },
+  "regions_flagged": [
+    {
+      "roi_id": "BRACS_1920_DCIS_5",
+      "notes": [
+        "the teacher found in-situ epithelium on only 1.1% of a region BRACS annotates as DCIS. Check the resolution assumption before trusting these tiles.",
+        "more invasive (70.4%) than in-situ (1.1%) epithelium in a DCIS region. Either the region genuinely contains invasion, or the class codes are the wrong way round - the second would invert the whole training set and must be excluded first.",
+        "no class 1 tiles survived the vote, so this region adds nothing to the training set even though it segmented."
+      ]
+    },
+    {
+      "roi_id": "BRACS_1840_DCIS_2",
+      "notes": [
+        "more invasive (32.7%) than in-situ (27.0%) epithelium in a DCIS region. Either the region genuinely contains invasion, or the class codes are the wrong way round - the second would invert the whole training set and must be excluded first."
+      ]
+    },
+    {
+      "roi_id": "BRACS_1636_DCIS_10",
+      "notes": [
+        "the teacher found in-situ epithelium on only 0.0% of a region BRACS annotates as DCIS. Check the resolution assumption before trusting these tiles.",
+        "more invasive (65.1%) than in-situ (0.0%) epithelium in a DCIS region. Either the region genuinely contains invasion, or the class codes are the wrong way round - the second would invert the whole training set and must be excluded first.",
+        "no class 1 tiles survived the vote, so this region adds nothing to the training set even though it segmented."
+      ]
+    },
+    {
+      "roi_id": "BRACS_283_DCIS_26",
+      "notes": [
+        "more invasive (35.9%) than in-situ (21.6%) epithelium in a DCIS region. Either the region genuinely contains invasion, or the class codes are the wrong way round - the second would invert the whole training set and must be excluded first."
+      ]
+    },
+    {
+      "roi_id": "BRACS_773_DCIS_97",
+      "notes": [
+        "the teacher found in-situ epithelium on only 1.6% of a region BRACS annotates as DCIS. Check the resolution assumption before trusting these tiles.",
+        "more invasive (68.2%) than in-situ (1.6%) epithelium in a DCIS region. Either the region genuinely contains invasion, or the class codes are the wrong way round - the second would invert the whole training set and must be excluded first.",
+        "no class 1 tiles survived the vote, so this region adds nothing to the training set even though it segmented."
+      ]
+    },
+    {
+      "roi_id": "BRACS_1487_DCIS_24",
+      "notes": [
+        "more invasive (60.5%) than in-situ (18.3%) epithelium in a DCIS region. Either the region genuinely contains invasion, or the class codes are the wrong way round - the second would invert the whole training set and must be excluded first."
+      ]
+    }
+  ],
+  "wall_clock_seconds": 156.4,
+  "comparison": {
+    "classes": [
+      {
+        "class": "non_epithelium",
+        "bcss": {
+          "name": "BCSS non_epithelium",
+          "n": 300,
+          "shape": [
+            224,
+            224
+          ],
+          "dtype": "uint8",
+          "mode": "L",
+          "mean": 40.4,
+          "sd": 41.04,
+          "quantiles": {
+            "p50": 28.0,
+            "p75": 55.0,
+            "p90": 97.0,
+            "p95": 130.0,
+            "p99": 184.0
+          }
+        },
+        "bracs": {
+          "name": "BRACS non_epithelium",
+          "n": 10,
+          "shape": [
+            224,
+            224
+          ],
+          "dtype": "uint8",
+          "mode": "L",
+          "mean": 24.23,
+          "sd": 24.64,
+          "quantiles": {
+            "p50": 17.0,
+            "p75": 33.0,
+            "p90": 56.0,
+            "p95": 74.0,
+            "p99": 118.0
+          }
+        },
+        "format_identical": true,
+        "quantile_ratios": {
+          "p50": 0.607,
+          "p75": 0.6,
+          "p90": 0.577,
+          "p95": 0.569,
+          "p99": 0.641
+        },
+        "findings": [
+          "only 10 tiles on the BRACS side, so these ratios describe a couple of slides rather than a dataset. Read them as a direction, not a measurement.",
+          "the ratio is close to constant at 0.60x across the ladder, so this is a stain-STRENGTH difference and a monotone correction fixes it. It sits OUTSIDE approach 1's alpha jitter (0.8, 1.25), so the model would extrapolate on every BRACS tile. Either widen alpha or train with `standardise=True`, which divides each tile by its own p99 and removes a pure scale difference by construction."
+        ],
+        "ratio_spread": 1.13
+      },
+      {
+        "class": "non_invasive_epithelium",
+        "bcss": {
+          "name": "BCSS non_invasive_epithelium",
+          "n": 9,
+          "shape": [
+            224,
+            224
+          ],
+          "dtype": "uint8",
+          "mode": "L",
+          "mean": 40.7,
+          "sd": 37.53,
+          "quantiles": {
+            "p50": 28.0,
+            "p75": 55.0,
+            "p90": 89.0,
+            "p95": 118.0,
+            "p99": 180.0
+          }
+        },
+        "bracs": {
+          "name": "BRACS non_invasive_epithelium",
+          "n": 148,
+          "shape": [
+            224,
+            224
+          ],
+          "dtype": "uint8",
+          "mode": "L",
+          "mean": 40.9,
+          "sd": 33.41,
+          "quantiles": {
+            "p50": 35.0,
+            "p75": 62.0,
+            "p90": 89.0,
+            "p95": 105.0,
+            "p99": 132.0
+          }
+        },
+        "format_identical": true,
+        "quantile_ratios": {
+          "p50": 1.25,
+          "p75": 1.127,
+          "p90": 1.0,
+          "p95": 0.89,
+          "p99": 0.733
+        },
+        "findings": [
+          "only 9 tiles on the BCSS side, so these ratios describe a couple of slides rather than a dataset. Read them as a direction, not a measurement.",
+          "the BRACS/BCSS density ratio runs from 0.73 to 1.25 across the quantile ladder - a 1.7x spread. That is a difference in the SHAPE of the density distribution, not its strength, and no monotone correction removes it: not stain normalisation, not a per-slide white point, not the alpha jitter. Approach 1's `gamma` term is the knob that moves shape, and its training range of 0.5 to 3.5 is what would have to cover this."
+        ],
+        "ratio_spread": 1.7
+      },
+      {
+        "class": "invasive_epithelium",
+        "bcss": {
+          "name": "BCSS invasive_epithelium",
+          "n": 300,
+          "shape": [
+            224,
+            224
+          ],
+          "dtype": "uint8",
+          "mode": "L",
+          "mean": 50.14,
+          "sd": 39.12,
+          "quantiles": {
+            "p50": 42.0,
+            "p75": 69.0,
+            "p90": 104.0,
+            "p95": 129.0,
+            "p99": 174.0
+          }
+        },
+        "bracs": {
+          "name": "BRACS invasive_epithelium",
+          "n": 35,
+          "shape": [
+            224,
+            224
+          ],
+          "dtype": "uint8",
+          "mode": "L",
+          "mean": 49.83,
+          "sd": 34.5,
+          "quantiles": {
+            "p50": 44.0,
+            "p75": 73.0,
+            "p90": 101.0,
+            "p95": 115.0,
+            "p99": 136.0
+          }
+        },
+        "format_identical": true,
+        "quantile_ratios": {
+          "p50": 1.048,
+          "p75": 1.058,
+          "p90": 0.971,
+          "p95": 0.891,
+          "p99": 0.782
+        },
+        "findings": [
+          "the ratio is close to constant at 0.97x across the ladder, so this is a stain-STRENGTH difference and a monotone correction fixes it. It sits inside approach 1's alpha jitter (0.8, 1.25), so the existing augmentation already covers it and nothing need change."
+        ],
+        "ratio_spread": 1.35
+      }
+    ],
+    "tile_counts": {
+      "bcss": {
+        "non_epithelium": 5435,
+        "non_invasive_epithelium": 9,
+        "invasive_epithelium": 5282
+      },
+      "bracs": {
+        "non_epithelium": 10,
+        "non_invasive_epithelium": 148,
+        "invasive_epithelium": 35
+      }
+    },
+    "headline": {
+      "class": "non_invasive_epithelium",
+      "bcss_tiles": 9,
+      "bracs_tiles": 148,
+      "multiple": 16.4,
+      "caveat": "This is a count of tiles, not of correct tiles. Every BRACS label here is BEETLE's opinion of a region no pathologist has reviewed, so the ceiling on their accuracy is BEETLE's own external non-invasive Dice. A held-out set built from these tiles measures agreement with BEETLE, not with the truth - the only honest test of the trained model is BCSS's real class 1 tiles, kept entirely out of training."
+    }
+  }
+}

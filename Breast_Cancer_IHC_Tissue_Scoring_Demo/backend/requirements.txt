@@ -1,0 +1,16 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-multipart==0.0.20
+
+# Whole-slide reading (step 1)
+numpy>=1.26
+Pillow>=10.4
+tifffile>=2024.7.2
+tiffslide>=2.4
+
+# Morphology and connected components (step 3). Core, not optional: step 3 is
+# classical and always runs. Step 2's classical feature maps use the same
+# package, which is why requirements-qc.txt no longer lists it.
+scipy>=1.14
