@@ -1,0 +1,5 @@
+# Offline tools, not the web app: the review's analysis scripts and
+# `scripts/build_familiarity_references.py`. They were imported without being listed
+# anywhere (P-20), so a fresh venv could serve the app and not rebuild its own inputs.
+scikit-learn==1.9.0
+openpyxl==3.1.5

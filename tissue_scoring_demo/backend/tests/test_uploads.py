@@ -432,3 +432,66 @@ def test_tile_cache_survives_concurrent_requests(ready_upload: str, client: Test
     ok = [r for r in responses if r.status_code == 200]
     assert ok, "no tiles were served"
     assert all(r.content[:2] == b"\xff\xd8" for r in ok), "a concurrent read returned corrupt data"
+
+
+# --- P-20: the override is the slide's scale everywhere, not only on step 1 ---------
+
+
+def test_the_override_reaches_every_later_reader(ready_upload: str, client: TestClient) -> None:
+    """Every step after 1 opens the slide itself; it must see the scale step 1 was given."""
+    from app.ingestion.slide_reader import open_slide
+    from app.services.upload_service import resolve_ready_path
+
+    path = resolve_ready_path(upload_id=ready_upload)
+    with open_slide(path) as reader:
+        assert reader.mpp is None, "a plain PNG records no scale"
+
+    client.get(f"/api/v1/slides/{ready_upload}/readout?mppOverride=0.25")
+    with open_slide(path) as reader:
+        assert reader.mpp == 0.25
+
+    # The upload is still readable with the new field in its record.
+    assert client.get(f"/api/v1/uploads/{ready_upload}").json()["state"] == "ready"
+
+    client.get(f"/api/v1/slides/{ready_upload}/readout")  # the screen cleared it
+    with open_slide(path) as reader:
+        assert reader.mpp is None
+
+
+def test_a_changed_scale_discards_what_was_measured_at_the_old_one(
+    ready_upload: str, client: TestClient
+) -> None:
+    from app.core.config import settings
+
+    own = settings.tissue_dir / ready_upload
+    pair = settings.per_cell_dir / f"otherHe__{ready_upload}"
+    unrelated = settings.tissue_dir / "someoneElse"
+    for directory in (own, pair, unrelated):
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "report.json").write_text("{}", encoding="utf-8")
+
+    client.get(f"/api/v1/slides/{ready_upload}/readout?mppOverride=0.25")
+    assert not own.exists() and not pair.exists()
+    assert unrelated.exists()
+
+    # The same scale again changes nothing, so nothing is discarded.
+    own.mkdir(parents=True)
+    client.get(f"/api/v1/slides/{ready_upload}/readout?mppOverride=0.25")
+    assert own.exists()
+
+
+def test_non_square_pixels_are_refused_rather_than_measured_as_square(tmp_path) -> None:
+    from app.ingestion.slide_reader import SlideReader, SlideScaleError
+
+    reader = SlideReader.__new__(SlideReader)
+    reader.path = tmp_path / "slide.svs"
+
+    class _Slide:
+        properties = {"tiffslide.mpp-x": "0.25", "tiffslide.mpp-y": "0.30"}
+
+    reader._slide = _Slide()
+    with pytest.raises(SlideScaleError, match="not square"):
+        _ = reader.mpp
+
+    _Slide.properties = {"tiffslide.mpp-x": "0.2500", "tiffslide.mpp-y": "0.2501"}
+    assert reader.mpp == pytest.approx(0.25)

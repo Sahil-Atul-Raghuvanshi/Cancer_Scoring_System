@@ -16,7 +16,9 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
-REPO = pathlib.Path(r"C:\Users\Coditas\Desktop\Healthcare_Projects\Cancer_Scoring_System")
+# The workspace root, from this file's own place - review_reports/<review>/<script>.py
+# - rather than one machine's path (P-20).
+REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO))  # data_versions.py lives at the workspace root
 import data_versions  # noqa: E402
 BACKEND = REPO / "tissue_scoring_demo" / "backend"

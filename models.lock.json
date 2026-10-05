@@ -28,9 +28,9 @@
       "sha256": "ef16c64536694d8aa51bb9d974d0d9412f6a1d76e5bed35c92b593d9dc9c933d",
       "md5": "c1c82ed123484cd8760b6343feeee14f",
       "hash": "published",
-      "role": "training",
+      "role": "runtime",
       "licence": "CC BY-NC-SA 4.0",
-      "used_by": "training only - the BEETLE nnU-Net teacher that labelled the BRACS in-situ tiles. The web app never loads this. 1.8 GB.",
+      "used_by": "steps 8 and 11 - the per-pixel BEETLE option and the region refinement on the default (refined) path. Also the nnU-Net teacher that labelled the BRACS in-situ tiles. 1.8 GB.",
       "sources": [
         {
           "kind": "url",

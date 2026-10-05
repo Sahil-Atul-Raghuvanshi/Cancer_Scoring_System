@@ -1,12 +1,16 @@
 # The isolated registration environment. Python 3.11 - see README.md for why
 # this cannot share the backend's interpreter.
 #
-# Only the two direct requirements are pinned. Everything else - numpy 1.26,
-# SimpleITK, scyjava, jpype1, cjdk, torch, kornia - comes in as a VALIS
-# dependency at whatever version it asks for, and pinning them here would only
-# create a second place for those constraints to drift out of date.
+# VALIS itself is retired, but this venv is still what step 12 runs its transforms
+# in: SimpleITK *is* the registration method now (Mattes mutual information), and it
+# used to arrive only as an unpinned VALIS dependency (P-20). So it is a direct,
+# pinned requirement - an upgrade that changed the optimiser would change every
+# transform, and nothing would say so. numpy is held at 1.26 for VALIS's compiled
+# wheels. Everything else is in requirements.lock.txt, exactly as installed.
 
 valis-wsi==1.2.0
+SimpleITK==2.5.6
+numpy==1.26.4
 
 # NOT optional, and not a VALIS dependency: the `pyvips` wheel is only the
 # Python binding. Without this, importing it fails with

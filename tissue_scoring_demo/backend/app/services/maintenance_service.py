@@ -429,6 +429,28 @@ def sweep(
     return result
 
 
+def discard_derived(upload_id: str) -> list[str]:
+    """Remove every cache computed from one slide, pair-keyed ones included.
+
+    `sweep(scope="derived")` removes the folders named after the upload. This also takes
+    the `<he>__<ihc>` folders either half of which is this slide - matched against the
+    id, never split, for the reason `is_orphaned` gives. Used when the slide's scale
+    changes (step 1's override), which invalidates every measurement made from it.
+    """
+    removed: list[str] = []
+    for step, directory in _derived_dirs().items():
+        if not directory.exists():
+            continue
+        for path in directory.iterdir():
+            name = path.name
+            if name == upload_id or name.startswith(f"{upload_id}__") or name.endswith(f"__{upload_id}"):
+                _remove(path, dry_run=False)
+                removed.append(f"{step}/{name}")
+    if removed:
+        logger.info("maintenance.discard_derived", extra={"upload_id": upload_id, "items": len(removed)})
+    return removed
+
+
 def sweep_orphans_on_start() -> Swept:
     """Delete data nothing can read, at start-up. Never raises.
 

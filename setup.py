@@ -223,6 +223,24 @@ def setup_venv(p: Problems, *, recreate: bool) -> None:
 
     run([str(py), "-m", "pip", "install", "--upgrade", "pip", "--quiet"], label="pip upgrade")
 
+    # **The lock first, when there is one (P-20).** The ranges in requirements*.txt let
+    # numpy, scipy, torch, smp and timm float, so two machines set up a week apart ran
+    # different code under the same commit. The lock is the venv as it was verified;
+    # the range files below then only add what the lock does not already satisfy.
+    lock = BACKEND / "requirements.lock.txt"
+    if lock.exists():
+        note(f"installing {lock.name} (every package at the version it was verified with)")
+        if not run(
+            [
+                str(py), "-m", "pip", "install", "-r", str(lock),
+                "--extra-index-url", TORCH_INDEX, "--quiet",
+            ],
+            label="pip install requirements.lock.txt",
+        ):
+            p.error("the locked dependencies failed to install")
+            return
+        ok("locked dependencies installed")
+
     core = BACKEND / "requirements.txt"
     note(f"installing {core.name} (FastAPI, tiffslide, scipy)")
     if not run(
@@ -232,6 +250,13 @@ def setup_venv(p: Problems, *, recreate: bool) -> None:
         p.error("core dependencies failed to install")
         return
     ok("core dependencies installed")
+
+    tools = BACKEND / "requirements-tools.txt"
+    if tools.exists() and run(
+        [str(py), "-m", "pip", "install", "-r", str(tools), "--quiet"],
+        label="pip install requirements-tools.txt",
+    ):
+        ok("offline tools installed (scikit-learn, openpyxl)")
 
     qc = BACKEND / "requirements-qc.txt"
     note(f"installing {qc.name} (torch CPU, smp, timm - about 500 MB, several minutes)")
@@ -315,11 +340,11 @@ def verify(path: Path, entry: dict) -> tuple[bool, str]:
     if actual == entry["sha256"]:
         return True, "bytes and sha256 match"
 
-    # A locally re-saved checkpoint carries this copy's hash, not a published
-    # one, so a matching byte count is the strongest claim available.
-    if entry.get("hash") == "local-resave":
-        return True, f"bytes match; sha256 differs ({actual[:16]}...) - expected for a re-save"
-
+    # No exception for a locally re-saved checkpoint any more (P-20). It used to pass on
+    # its byte count alone, which a different set of weights of the same architecture
+    # matches exactly - a retrained step 8 head is the same size as the one it replaces.
+    # The lock records this copy's own sha256 (`10e_update_models_lock.py` reads it from
+    # the published manifest), so a mismatch means it is not the file that was locked.
     return False, f"sha256 mismatch: {actual[:16]}... expected {entry['sha256'][:16]}..."
 
 
@@ -674,6 +699,54 @@ def run_readiness_checks(p: Problems) -> None:
                 note(f"  {line}")
 
 
+def _locked(lock: Path) -> dict[str, str]:
+    """`name==version` lines of a lock file, keyed by lower-case name."""
+    pins: dict[str, str] = {}
+    if not lock.is_file():
+        return pins
+    for line in lock.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "==" in line:
+            name, version = line.split("==", 1)
+            pins[name.strip().lower().replace("_", "-")] = version.strip()
+    return pins
+
+
+def check_registration_venv(p: Problems) -> None:
+    """The Python 3.11 venv step 12 runs its transforms in, against its lock (P-20).
+
+    Not built by this script - it needs a 3.11 interpreter beside the backend's 3.13,
+    see `tissue_scoring_demo/valis_service/README.md` - but checked by it. SimpleITK is
+    the registration method and numpy is held for VALIS's wheels, so a venv with either
+    at another version fits different transforms under the same commit.
+    """
+    rule("Registration venv (valis_service)")
+    service = APP / "valis_service"
+    python = service / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if not python.exists():
+        p.warning(
+            f"{python} is missing, so step 12 cannot carry regions onto the IHC. Create it "
+            "with Python 3.11 and install requirements.lock.txt - see valis_service/README.md."
+        )
+        return
+
+    pins = _locked(service / "requirements.lock.txt")
+    probe = subprocess.run(
+        [str(python), "-c", "import SimpleITK, numpy; print(SimpleITK.Version_VersionString()); print(numpy.__version__)"],
+        capture_output=True, text=True, timeout=300,
+    )
+    if probe.returncode != 0:
+        p.warning(f"the registration venv cannot import SimpleITK and numpy: {probe.stderr.strip()[-200:]}")
+        return
+    sitk_version, numpy_version = probe.stdout.split()[:2]
+    for name, found in (("simpleitk", sitk_version), ("numpy", numpy_version)):
+        wanted = pins.get(name)
+        if wanted and wanted != found:
+            p.warning(f"registration venv has {name} {found}; the lock says {wanted}")
+        else:
+            ok(f"registration venv: {name} {found}")
+
+
 def maybe_clone_grandqc(clone: bool) -> None:
     target = ROOT / "grandqc"
     if not clone:
@@ -745,6 +818,9 @@ def main() -> int:
             drive_folder=args.drive_folder,
         )
         check_manifests(problems)
+
+    if not args.models_only:
+        check_registration_venv(problems)
 
     if not args.check and not args.models_only:
         run_readiness_checks(problems)

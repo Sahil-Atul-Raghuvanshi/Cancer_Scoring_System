@@ -17,12 +17,45 @@ put different resolutions at the same level index, so callers must convert with
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 _PYRAMIDAL_EXTS = {".tif", ".tiff", ".svs", ".scn", ".bif"}
+
+#: How far apart a slide's x and y scales may be before its pixels count as non-square.
+#: Every physical quantity in the pipeline - an area in mm2, a radius in microns - is
+#: computed from one scale, so a slide whose pixels are not square is measured wrongly
+#: in one direction with no warning. 1% is far outside scanner rounding.
+MPP_ANISOTROPY_LIMIT = 0.01
+
+
+class SlideScaleError(ValueError):
+    """The slide's recorded scale cannot be used as one number."""
+
+
+def recorded_mpp_override(path: str | Path) -> float | None:
+    """The scale step 1 recorded for this slide, or None (P-20).
+
+    Step 1's override used to feed only its own readout, while every later step read
+    `reader.mpp` straight off the file - so a scale supplied for a slide that recorded
+    none was shown on screen and then ignored by everything that measured anything.
+    It is now written to the slide's record (`<upload id>.json`, beside the file) and
+    read here, so it is the scale every reader of that slide sees.
+    """
+    path = Path(path)
+    record = path.parent / f"{path.name.split('.')[0]}.json"
+    try:
+        value = json.loads(record.read_text(encoding="utf-8")).get("mpp_override")
+    except (OSError, ValueError, AttributeError):
+        return None
+    try:
+        value = float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+    return value if value and value > 0 else None
 
 
 def open_slide(path: str | Path) -> Any:
@@ -88,8 +121,34 @@ class SlideReader:
 
     @property
     def mpp(self) -> float | None:
-        """Microns per pixel at level 0, or None when the scanner did not record it."""
-        for key in ("tiffslide.mpp-x", "openslide.mpp-x", "aperio.MPP"):
+        """Microns per pixel at level 0: step 1's override, else the scanner's, else None.
+
+        Refuses a slide whose recorded x and y scales disagree by more than
+        `MPP_ANISOTROPY_LIMIT` (P-20). `mpp-y` used to be read by nothing, so non-square
+        pixels would have been measured as square. An override is the person's
+        statement of the scale and is taken as given.
+        """
+        override = recorded_mpp_override(self.path)
+        if override:
+            return override
+        scanner_x = self.scanner_mpp
+        scanner_y = self._number("tiffslide.mpp-y", "openslide.mpp-y")
+        if scanner_x and scanner_y and abs(scanner_x - scanner_y) > MPP_ANISOTROPY_LIMIT * scanner_x:
+            raise SlideScaleError(
+                f"{self.path.name} records {scanner_x:g} um/px across and {scanner_y:g} "
+                "um/px down - its pixels are not square, and every area and distance "
+                "in the pipeline assumes one scale. Supply the scale on step 1 to "
+                "proceed deliberately."
+            )
+        return scanner_x
+
+    @property
+    def scanner_mpp(self) -> float | None:
+        """The x scale the file records, ignoring any override. None when absent."""
+        return self._number("tiffslide.mpp-x", "openslide.mpp-x", "aperio.MPP")
+
+    def _number(self, *keys: str) -> float | None:
+        for key in keys:
             value = self._slide.properties.get(key)
             if value:
                 try:

@@ -22,7 +22,9 @@ REM   schtasks /Delete /TN CancerScoringNight /F
 
 setlocal
 
-set ROOT=C:\Users\Coditas\Desktop\Healthcare_Projects\Cancer_Scoring_System
+REM The workspace root, from this script's own folder rather than one machine's
+REM path (P-20): %~dp0 is this folder, and its parent is the root.
+for %%I in ("%~dp0..") do set "ROOT=%%~fI"
 set PY=%ROOT%\tissue_scoring_demo\backend\.venv\Scripts\python.exe
 set HERE=%ROOT%\slide_registration
 REM The data version, asked of data_versions.py so it follows the same rule as the app:

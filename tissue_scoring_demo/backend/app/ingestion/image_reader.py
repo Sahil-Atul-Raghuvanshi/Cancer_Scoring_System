@@ -67,7 +67,15 @@ class ImageSlideReader:
 
     @property
     def mpp(self) -> float | None:
-        return None  # a plain image carries no physical scale
+        # A plain image carries no physical scale of its own; step 1's override, when
+        # one was recorded, is the only one it has (P-20).
+        from .slide_reader import recorded_mpp_override
+
+        return recorded_mpp_override(self.path)
+
+    @property
+    def scanner_mpp(self) -> float | None:
+        return None
 
     @property
     def objective_power(self) -> float | None:

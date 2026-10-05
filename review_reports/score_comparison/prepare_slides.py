@@ -7,7 +7,9 @@ so a page never shows a picture from a different run than the score beside it.
 import csv, json, pathlib, statistics as st, sys
 from PIL import Image
 
-REPO = pathlib.Path(r"C:\Users\Coditas\Desktop\Healthcare_Projects\Cancer_Scoring_System")
+# The workspace root, from this file's own place - review_reports/<review>/<script>.py
+# - rather than one machine's path (P-20).
+REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO))  # data_versions.py lives at the workspace root
 import data_versions  # noqa: E402
 HIST = data_versions.data_root() / "history"

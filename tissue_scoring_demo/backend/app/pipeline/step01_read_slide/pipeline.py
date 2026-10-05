@@ -20,6 +20,8 @@ Two things here are adjustable, and they are not the same thing:
 
 from __future__ import annotations
 
+import json
+
 import math
 from io import BytesIO
 from pathlib import Path
@@ -97,7 +99,7 @@ def build_readout(
 ) -> SlideReadout:
     """Open the slide and describe its pyramid. Reads metadata only, no pixels."""
     with open_slide(path) as reader:
-        scanner_mpp = reader.mpp
+        scanner_mpp = reader.scanner_mpp
 
         if mpp_override and mpp_override > 0:
             base_mpp: float | None = mpp_override
@@ -193,6 +195,7 @@ class SlideReaderService:
         `mpp_override` supplies a scale for files that record none.
         """
         path = resolve_ready_path(upload_id=upload_id)
+        self._record_override(upload_id, path, mpp_override)
         readout = build_readout(
             path,
             target_mpp=target_mpp if target_mpp and target_mpp > 0 else settings.target_mpp,
@@ -201,6 +204,40 @@ class SlideReaderService:
         )
         readout.upload_id = upload_id
         return readout
+
+    @staticmethod
+    def _record_override(upload_id: str, path: Path, mpp_override: float | None) -> None:
+        """Make step 1's scale the slide's scale for every later step (P-20).
+
+        Written to the slide's record, where `SlideReader.mpp` reads it. The screen sends
+        its current override with every step-1 request, so a request without one means
+        the override was cleared, and the record is cleared to match.
+
+        **A changed scale discards everything computed for this slide.** Every later
+        step's areas, radii and grids are in microns, and none of their caches is keyed
+        on the scale - so results computed at the old one would otherwise be served at
+        the new one. The pair-keyed folders go too, since they measured this slide.
+        """
+        record_path = path.parent / f"{path.name.split('.')[0]}.json"
+        if not record_path.is_file():
+            return
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+
+        wanted = float(mpp_override) if mpp_override and mpp_override > 0 else None
+        if record.get("mpp_override") == wanted:
+            return
+        if wanted is None:
+            record.pop("mpp_override", None)
+        else:
+            record["mpp_override"] = wanted
+        record_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+        from app.services import maintenance_service
+
+        maintenance_service.discard_derived(upload_id)
 
     def thumbnail_png(self, upload_id: str, *, max_size: int = 1024) -> bytes:
         """A whole-slide overview as PNG bytes.

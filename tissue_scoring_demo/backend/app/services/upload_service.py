@@ -64,6 +64,11 @@ class UploadRecord:
     final_path: str | None = None
     error: str | None = None
     received: list[int] = field(default_factory=list)
+    #: The scale step 1 recorded for this slide, in um/px, or None to use the
+    #: scanner's (P-20). Declared here because this record is rebuilt with
+    #: `UploadRecord(**json)` - a key it does not declare makes the whole record
+    #: unreadable, and the slide then reads as "not found".
+    mpp_override: float | None = None
 
 
 def _staging_dir(upload_id: str) -> Path:
