@@ -89,6 +89,11 @@ class CellMeasurement:
     #: instead of it looking like weak staining. None for a cytoplasmic marker.
     occupied_bins: int | None = None
 
+    #: Whether step 14 called this cell tumour (P-04). None when the typing was not
+    #: available. Carried per cell so the score can report a tumour-only sensitivity
+    #: beside the all-cells figure from the same rows.
+    tumour: bool | None = None
+
 
 def _centroids(
     labels: np.ndarray, ids: np.ndarray

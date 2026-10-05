@@ -35,7 +35,7 @@ def report(
     ihc_upload_id: str = Query(alias="ihcUploadId"),
     width_um: float | None = Query(default=None, alias="widthUm", gt=0.0, le=25.0),
     voronoi: bool = Query(default=True),
-    tumour_only: bool = Query(default=True, alias="tumourOnly"),
+    tumour_only: bool | None = Query(default=None, alias="tumourOnly"),
 ) -> CompartmentsReport:
     """`voronoi=false` is for the demo only - it shows what neighbours colliding costs."""
     try:

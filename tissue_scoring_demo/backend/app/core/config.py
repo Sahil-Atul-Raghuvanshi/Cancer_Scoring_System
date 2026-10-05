@@ -750,6 +750,16 @@ class Settings(BaseSettings):
     #                   of genuine tissue; below this no distance reference is
     #                   published and the head keeps the flat test only.
     tissue_type_max_flat_share: float = 0.75
+
+    # Which cells a score is counted over (P-04).
+    #   "all"     every nucleus inside the scored region - the reported figure while
+    #             the tumour/non-tumour typing fails its own check, which it does on
+    #             every slide measured so far. Tumour-only is reported beside it as a
+    #             sensitivity, so the typing's effect stays visible without deciding
+    #             the number.
+    #   "tumour"  only the cells step 14 calls tumour, as originally designed. Use it
+    #             once the typing is credible (after P-03, or a refit).
+    score_population: str = "all"
     tissue_type_familiarity_quantile: float = 1.0
     tissue_type_familiarity_min_held_out: int = 300
 

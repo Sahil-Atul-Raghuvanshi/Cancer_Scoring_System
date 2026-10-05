@@ -76,6 +76,10 @@ def _score_fields(he_upload_id: str, ihc_upload_id: str) -> dict:
         "cuts_provisional": score.cuts_provisional,
         "caveats": list(score.caveats),
         "status": score.status,
+        "population": score.population,
+        "percent_tumour_only": score.percent_tumour_only,
+        "intensity_tumour_only": score.intensity_tumour_only,
+        "cells_tumour_only": score.cells_tumour_only,
         "status_reasons": list(score.status_reasons),
         # What the score was made with (P-15). `run_all.py` compares this against the
         # current code, settings and cut file before it trusts a `done` case.

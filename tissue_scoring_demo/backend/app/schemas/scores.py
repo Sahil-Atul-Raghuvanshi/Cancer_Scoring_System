@@ -92,6 +92,15 @@ class MarkerScoreOut(APIModel):
     percent_plain_mean: float
     averaging_gap_points: float
     averaging_used: str = "area_weighted"
+
+    #: Which cells `percent` and `intensity` are counted over - "all" in the region or
+    #: "tumour" only (P-04) - and the tumour-only figures beside them when the reported
+    #: ones are all-cells. A sensitivity, not an alternative answer: it rests on a cell
+    #: typing that fails its own check, which is why it is not the reported figure.
+    population: str = "tumour"
+    percent_tumour_only: int | None = None
+    intensity_tumour_only: float | None = None
+    cells_tumour_only: int | None = None
     partial_rule: str = "count"
     percent_by_partial_rule: dict[str, int] = Field(default_factory=dict)
 

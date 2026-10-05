@@ -30,6 +30,8 @@ segmentation, the registration - already happened upstream.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -128,8 +130,9 @@ class PerCellService:
             )
 
     def _tumour_ids(
-        self, he_upload_id: str, ihc_upload_id: str, rank: int, field_index: int
-    ) -> set[int]:
+        self, he_upload_id: str, ihc_upload_id: str, rank: int, field_index: int,
+        *, required: bool = True,
+    ) -> set[int] | None:
         """Which nuclei in ONE field step 12 called tumour.
 
         Per field, because a nucleus id only identifies a nucleus within the
@@ -144,6 +147,9 @@ class PerCellService:
         try:
             return types_map.tumour_ids(path, field_index)
         except types_map.TypesUnavailableError as exc:
+            if not required:
+                # Counting every cell: no typing just means no tumour-only sensitivity.
+                return None
             raise PerCellError(
                 f"{exc} Only tumour cells are measured - measuring a lymphocyte's "
                 "membrane would put a cell in the numerator that is not in the "
@@ -160,12 +166,13 @@ class PerCellService:
         width_um: float,
         is_membrane: bool,
         shape: tuple[int, int],
-        shell_um: float | None,
-        nuclei_generated_at: str | None,
-        typing_stamp: str | None,
-        field_x: int,
-        field_y: int,
-        cell_ids: set[int],
+        tumour_only: bool = True,
+        shell_um: float | None = None,
+        nuclei_generated_at: str | None = None,
+        typing_stamp: str | None = None,
+        field_x: int = 0,
+        field_y: int = 0,
+        cell_ids: set[int] | None = None,
     ) -> tuple[geometry.Compartments | None, str | None]:
         """Step 13's compartments for one field, or None and the reason why.
 
@@ -209,10 +216,12 @@ class PerCellService:
                         f"step 13 last drew region {rank} field {index} as the other "
                         "compartment kind"
                     )
-                if not bool(stored["tumour_only"]):
+                if bool(stored["tumour_only"]) != tumour_only:
+                    drawn = "tumour cells only" if bool(stored["tumour_only"]) else "every cell"
+                    wanted = "tumour cells only" if tumour_only else "every cell"
                     return None, (
-                        f"step 13 last drew region {rank} field {index} over every "
-                        "cell, not tumour cells only"
+                        f"step 13 last drew region {rank} field {index} over {drawn}, "
+                        f"and this step is measuring {wanted}"
                     )
                 nucleus = stored["nucleus"].astype(np.int32)
                 if nucleus.shape != shape:
@@ -240,7 +249,7 @@ class PerCellService:
                         f"{wanted_shell:g} um"
                     )
                 stored_ids = set(np.unique(nucleus).tolist()) - {0}
-                if stored_ids != cell_ids:
+                if cell_ids is not None and stored_ids != cell_ids:
                     return None, (
                         f"step 13's {where} holds {len(stored_ids)} cells and this step "
                         f"is measuring {len(cell_ids)} - not the same cells"
@@ -335,6 +344,9 @@ class PerCellService:
         if spec.compartment == panel.Compartment.NONE:
             raise PerCellError(f"{spec.full_name} is not a scored marker.")
 
+        #: Which cells are measured - see `settings.score_population` (P-04).
+        tumour_only = settings.score_population == "tumour"
+
         marker_cuts = cut_points.for_marker(letter)
         is_membrane = spec.compartment == panel.Compartment.MEMBRANE
         width = spec.compartment_width_um
@@ -412,12 +424,17 @@ class PerCellService:
                     if loaded is None:
                         continue
                     labels, mpp, x, y, span = loaded
-                    labels = self._restrict(
-                        labels,
-                        self._tumour_ids(
-                            he_upload_id, ihc_upload_id, region.rank, field.index
-                        ),
+                    # **Every cell in the region, unless the setting says tumour only
+                    # (P-04).** The typing fails its own check on every slide measured
+                    # so far, and filtering on it put a stain-correlated hole in every
+                    # denominator. It is still read - each cell carries its verdict -
+                    # so the tumour-only figure is reported beside, not lost.
+                    tumour_ids = self._tumour_ids(
+                        he_upload_id, ihc_upload_id, region.rank, field.index,
+                        required=tumour_only,
                     )
+                    if tumour_only:
+                        labels = self._restrict(labels, tumour_ids or set())
                     if not labels.any():
                         continue
 
@@ -431,6 +448,7 @@ class PerCellService:
                         width_um=width,
                         is_membrane=is_membrane,
                         shape=(labels.shape[0], labels.shape[1]),
+                        tumour_only=tumour_only,
                         shell_um=shell,
                         nuclei_generated_at=nuclei_report.generated_at,
                         typing_stamp=types_map.stamp(
@@ -494,6 +512,11 @@ class PerCellService:
                     )
                     if not measured:
                         continue
+                    if tumour_ids is not None:
+                        measured = [
+                            replace(cell, tumour=cell.cell_id in tumour_ids)
+                            for cell in measured
+                        ]
 
                     region_cells.extend(measured)
                     fields.append(
@@ -565,6 +588,7 @@ class PerCellService:
                 second_min=marker_cuts.second_min,
                 cuts_version=cut_points.cut_set().version,
                 cuts_provisional=marker_cuts.provisional,
+                population="tumour" if tumour_only else "all",
             ),
             regions=regions,
             cells=len(pooled),
@@ -637,6 +661,7 @@ class PerCellService:
                     "pixels": cell.pixels,
                     "areaUm2": round(cell.area_um2, 3),
                     "occupiedBins": cell.occupied_bins,
+                    "tumour": cell.tumour,
                 }
                 for cell in cells
             ],

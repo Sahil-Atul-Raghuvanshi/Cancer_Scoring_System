@@ -30,6 +30,9 @@ class MeasurementParams(APIModel):
     expansion_um: float
     ring_um: float | None = None
 
+    #: Which cells were measured: "all" in the region, or "tumour" only (P-04).
+    population: str = "tumour"
+
     #: The optical density a bin or a pixel has to clear to count as stained.
     #: Read from this antibody's own cut-point set, never shared across markers.
     positivity_od: float

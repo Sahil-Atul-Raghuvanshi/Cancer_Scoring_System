@@ -320,6 +320,11 @@ COLUMNS = (
     "compartment",
     "second_measure",
     "cells",
+    # Which cells, and the tumour-only sensitivity beside the reported figure (P-04).
+    "population",
+    "percent_tumour_only",
+    "intensity_tumour_only",
+    "cells_tumour_only",
     "positive_cells",
     "h_score",
     "allred_proportion",

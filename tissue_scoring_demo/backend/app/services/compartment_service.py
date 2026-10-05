@@ -289,8 +289,12 @@ class CompartmentService:
         *,
         width_um: float | None = None,
         voronoi: bool = True,
-        tumour_only: bool = True,
+        tumour_only: bool | None = None,
     ) -> CompartmentsReport:
+        # Unspecified means the population the score is counted over (P-04), so the
+        # geometry step 16 reads is the one it will measure in.
+        if tumour_only is None:
+            tumour_only = settings.score_population == "tumour"
         try:
             nuclei_report = nuclei_service.report(he_upload_id, ihc_upload_id)
         except NucleiError as exc:
@@ -626,7 +630,7 @@ class CompartmentService:
         if loaded is None:
             return []
 
-        labels, mpp = loaded
+        labels, mpp = loaded[0], loaded[1]
         if tumour_only:
             keep = self._tumour_ids(
                 he_upload_id, ihc_upload_id, region.rank, field.index

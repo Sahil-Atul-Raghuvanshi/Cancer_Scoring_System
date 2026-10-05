@@ -85,6 +85,16 @@ export interface MarkerScore {
    */
   status?: ScoreStatus
   statusReasons?: string[]
+
+  /**
+   * Which cells `percent` and `intensity` count: every cell in the region ("all") or
+   * only those step 14 called tumour. With "all", the tumour-only figures sit beside
+   * them as a sensitivity (P-04).
+   */
+  population?: 'all' | 'tumour'
+  percentTumourOnly?: number | null
+  intensityTumourOnly?: number | null
+  cellsTumourOnly?: number | null
 }
 
 export type ScoreStatus = 'measured' | 'provisional' | 'not_a_measurement'

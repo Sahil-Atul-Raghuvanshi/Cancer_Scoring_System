@@ -87,6 +87,27 @@ class ScoreService:
             partial_rule=cut_file.partial_membrane_rule,
         )
 
+        # **The tumour-only figure, as a sensitivity (P-04).** Same rows, same cuts,
+        # same arithmetic - only restricted to the cells step 14 called tumour. Reported
+        # beside the all-cells figure rather than instead of it, because the typing it
+        # rests on fails its own check; how far the two differ is how much the typing
+        # would have moved the answer.
+        population = getattr(measured.params, "population", "tumour")
+        tumour_only = None
+        if population == "all":
+            tumour_rows = [row for row in rows if row.get("tumour") is True]
+            if tumour_rows:
+                tumour_only = score(
+                    letter,
+                    tumour_rows,
+                    marker_cuts,
+                    marker_name=spec.full_name,
+                    compartment=spec.compartment.value,
+                    second_measure=measured.second_measure,
+                    region_areas=areas,
+                    partial_rule=cut_file.partial_membrane_rule,
+                )
+
         out = MarkerScoreOut(
             marker=result.marker,
             marker_name=result.marker_name,
@@ -113,6 +134,10 @@ class ScoreService:
             percent_plain_mean=result.percent_plain_mean,
             averaging_gap_points=result.averaging_gap_points,
             averaging_used="area_weighted",
+            population=population,
+            percent_tumour_only=tumour_only.percent if tumour_only else None,
+            intensity_tumour_only=tumour_only.intensity if tumour_only else None,
+            cells_tumour_only=tumour_only.cells if tumour_only else None,
             partial_rule=result.partial_rule,
             percent_by_partial_rule=result.percent_by_partial_rule,
             regions=[
@@ -133,7 +158,10 @@ class ScoreService:
             od_cuts=list(result.od_cuts),
             second_min=result.second_min,
             cuts_provisional=result.cuts_provisional,
-            caveats=self._caveats(he_upload_id, ihc_upload_id, result, measured),
+            caveats=self._caveats(
+                he_upload_id, ihc_upload_id, result, measured,
+                population=population, tumour_only=tumour_only,
+            ),
         )
         out.status, out.status_reasons = self._status(out.caveats)
 
@@ -290,10 +318,28 @@ class ScoreService:
         ]
 
     def _caveats(
-        self, he_upload_id: str, ihc_upload_id: str, result: MarkerScore, measured
+        self, he_upload_id: str, ihc_upload_id: str, result: MarkerScore, measured,
+        *, population: str = "tumour", tumour_only: MarkerScore | None = None,
     ) -> list[str]:
         """What a reader has to know before using these two numbers."""
         caveats: list[str] = []
+
+        if population == "all":
+            gap = (
+                f" Counting only the cells step 14 called tumour ({tumour_only.cells:,} of "
+                f"{result.cells:,}) gives {tumour_only.percent} % positive, intensity "
+                f"{tumour_only.intensity:g} - {abs(tumour_only.percent - result.percent)} "
+                "points from the reported figure."
+                if tumour_only is not None
+                else " No tumour-only figure is available: step 14's typing was not on disk."
+            )
+            caveats.append(
+                "ALL CELLS IN THE REGION, NOT TUMOUR ONLY. The percentage is counted over "
+                "every nucleus inside the scored region, because the tumour/non-tumour "
+                "sorting fails its own check and filtering on it put a stain-correlated "
+                "hole in the denominator (P-04). Stroma and immune cells inside the region "
+                "are counted too." + gap
+            )
 
         spec = panel.spec(result.marker)
         low, high = spec.expected_percent
@@ -468,7 +514,16 @@ class ScoreService:
         # The typing marks itself untrustworthy when the nuclei it sorted are not ones it
         # can tell apart - and every score is computed over the cells it called tumour.
         typing = self._typing_verdict(he_upload_id, ihc_upload_id)
-        if typing is not None and not typing[0]:
+        if typing is not None and not typing[0] and population == "all":
+            # Counting every cell, the typing decides only the sensitivity figure - so it
+            # qualifies that figure and does not refuse the reported one.
+            caveats.append(
+                "TUMOUR-ONLY FIGURE RESTS ON FAILED TYPING. Step 14 marked its sorting "
+                f"untrustworthy ({typing[1] or 'no reason recorded'}). It does not touch "
+                "the reported percentage, which counts every cell; read the tumour-only "
+                "figure beside it as indicative only."
+            )
+        elif typing is not None and not typing[0]:
             caveats.append(
                 "CELL TYPING FAILED ITS OWN CHECK. Step 14 marked the tumour/non-tumour "
                 f"sorting for this pair untrustworthy ({typing[1] or 'no reason recorded'}). "
@@ -546,6 +601,7 @@ class ScoreService:
         "ALIGNMENT CONFIRMED, BY WHOM UNRECORDED.",
         "ALIGNMENT GATE MEASURED ON A FALLBACK.",
         "REGIONS CHOSEN BY THE DEFAULT RULE.",
+        "ALL CELLS IN THE REGION, NOT TUMOUR ONLY.",
         "THIN DENOMINATOR.",
         "DENOMINATOR INCOMPLETE.",
     )
