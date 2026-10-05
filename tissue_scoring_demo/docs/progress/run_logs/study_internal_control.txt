@@ -1,0 +1,11 @@
+[16:37:15] A: warping 8 control region(s) with the cached transform
+[16:43:22] A: control mean 0.0358 OD over 24 fields (1.573 mm2 of 16.91 mm2 available)
+[16:43:22] F: warping 8 control region(s) with the cached transform
+[16:49:48] F: control mean 0.6078 OD over 24 fields (1.573 mm2 of 16.91 mm2 available)
+[16:49:48] R: warping 8 control region(s) with the cached transform
+[16:55:38] R: control mean 0.2677 OD over 24 fields (1.573 mm2 of 16.91 mm2 available)
+[16:55:38] U: warping 8 control region(s) with the cached transform
+[16:56:33] U: control mean 0.4990 OD over 24 fields (1.573 mm2 of 16.91 mm2 available)
+[16:56:33] W: warping 8 control region(s) with the cached transform
+[16:57:22] W: control mean 0.3050 OD over 24 fields (1.573 mm2 of 16.91 mm2 available)
+[16:57:22] wrote C:\Users\Coditas\Desktop\Healthcare_Projects\Cancer_Scoring_System\data\demo\scores\CAN_00270_internal_control.json

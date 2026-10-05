@@ -1,0 +1,248 @@
+/* ============================================================================
+   Step 10: the two slides side by side, and the sign-off that follows.
+   ========================================================================== */
+
+.align,
+.align-refused,
+.align-start {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.align-start {
+  align-items: flex-start;
+  max-width: 62ch;
+}
+
+.align-start__text,
+.align__lead,
+.align-refused__lead {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+  max-width: 78ch;
+}
+
+.align__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.align__count {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* --- the comparison ---------------------------------------------------------
+   Two equal columns, because the whole point is that they are compared. On a
+   narrow screen they stack rather than shrink: two 300 px panels of a 127,000 px
+   slide show nothing anyone can judge. */
+
+.align__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-4);
+}
+
+.align__figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.align__figure img {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+}
+
+.align__figure figcaption,
+.align__crop figcaption {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* --- the numbers ------------------------------------------------------------ */
+
+.align-measures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.align-measure {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+}
+
+.align-measure__label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.align-measure__value {
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+}
+
+.align-measure__hint {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+.align__notes {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+/* --- the crops -------------------------------------------------------------- */
+
+.align__subhead {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.align__crops {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.align__crop {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.align__crop img {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+}
+
+/* --- the decision ------------------------------------------------------------
+   Framed as a decision rather than a warning: confirming and re-running are both
+   legitimate, and the panels above are what should carry the weight. */
+
+.align__decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: var(--bg-panel);
+}
+
+.align__decision-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.align__decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.align__blocked {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--warn);
+}
+
+/* --- refusal ----------------------------------------------------------------- */
+
+.align-refused__reasons {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* --- crops: which slide they are taken from -------------------------------- */
+
+.align__crops-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.align__crop-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.align__crop-toggle button {
+  padding: 4px var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.align__crop-toggle button:hover {
+  color: var(--text-secondary);
+}
+
+.align__crop-toggle button.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+
+/* --- how much tumour was carried ------------------------------------------
+   The count answers "how many pieces"; this answers "how much", which is the
+   half of the question that decides whether the score describes the slide. */
+
+.align__coverage {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.2;
+  padding-left: var(--space-3, 0.75rem);
+  margin-left: var(--space-3, 0.75rem);
+  border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.align__coverage small {
+  font-size: var(--text-xs, 0.72rem);
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+}
+
+.align__coverage.is-thin {
+  color: var(--warn-text, #f0c674);
+}
+
+.align__thin {
+  margin: 0 0 var(--space-3, 0.75rem);
+  max-width: 78ch;
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  border-left: 3px solid var(--warn-border, #d9a441);
+  color: var(--text-secondary);
+  font-size: var(--text-sm, 0.9rem);
+}

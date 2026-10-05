@@ -1,0 +1,108 @@
+/** Types for step 16. Mirrors `backend/app/schemas/scores.py`. */
+
+export interface RegionScore {
+  rank: number
+  areaMm2: number
+  cells: number
+  positiveCells: number
+  percentRaw: number
+  intensityRaw: number
+}
+
+export interface HeterogeneityTile {
+  regionRank: number
+  fieldIndex: number
+  x: number
+  y: number
+  span: number
+  cells: number
+  percent: number
+}
+
+export interface CascadeStep {
+  label: string
+  expression: string
+  value: string
+}
+
+/**
+ * One antibody's numbers.
+ *
+ * `percent` and `intensity` are the contract - a client that renders only those
+ * two has rendered the whole deliverable. Everything else on this interface is
+ * context, a check, or the field's standard vocabulary.
+ */
+export interface MarkerScore {
+  marker: string
+  markerName: string
+  percent: number
+  intensity: number
+  intensityLabel: string
+
+  percentRaw: number
+  intensityRaw: number
+  percentPooled: number
+  intensityPooled: number
+
+  compartment: string
+  secondMeasure: string
+
+  cells: number
+  positiveCells: number
+  binCounts: number[]
+  binShares: number[]
+
+  /** Reference vocabulary. Never the deliverable. */
+  hScore: number
+  allredProportion: number
+  allredIntensity: number
+  allredTotal: number
+  her2Call: string | null
+  her2Note: string
+
+  percentAreaWeighted: number
+  percentPlainMean: number
+  averagingGapPoints: number
+  averagingUsed: string
+  partialRule: string
+  percentByPartialRule: Record<string, number>
+
+  regions: RegionScore[]
+  heterogeneity: HeterogeneityTile[]
+  cascade: CascadeStep[]
+
+  odCuts: number[]
+  secondMin: number
+  cutsProvisional: boolean
+
+  /** What has to be known before these two numbers are used. */
+  caveats: string[]
+}
+
+export interface ScoreReport {
+  heUploadId: string
+  ihcUploadId: string
+  generatedAt: string
+  measuredAt: string | null
+  score: MarkerScore
+  notes: string[]
+}
+
+export interface CaseScoreRow {
+  marker: string
+  markerName: string
+  percent: number | null
+  intensity: number | null
+  intensityLabel: string
+  cells: number
+  state: string
+  detail: string
+}
+
+export interface CaseScoreReport {
+  caseId: string
+  generatedAt: string
+  rows: CaseScoreRow[]
+  complete: boolean
+  notes: string[]
+}

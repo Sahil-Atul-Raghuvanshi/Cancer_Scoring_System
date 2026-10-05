@@ -1,0 +1,104 @@
+{
+  "plan": "NIGHT_BUILD_PLAN.md",
+  "started": "2026-09-16T02:15:00",
+  "target": "CD44 (A) on CAN_00270",
+  "phases": {
+    "P0_baseline": {
+      "state": "done",
+      "at": "2026-09-16 02:19:03",
+      "detail": "npm run build green (194 modules); backend imports, 94 routes"
+    },
+    "P1_slide_overlay_viewer": {
+      "state": "done",
+      "at": "2026-09-16 02:25:32",
+      "detail": "components/viewer/{chrome.tsx,SlideOverlayViewer.tsx,overlay.css}; step 1's SlideViewer folded onto the same chrome; build green"
+    },
+    "P2_step11_nuclei": {
+      "state": "done",
+      "at": "2026-09-16 02:30:15",
+      "detail": "NucleiPanel now pans the IHC slide with all nuclei in light blue; region borders violet, sampled squares dashed; NucleiFieldViewer deleted; features/cells/overlay.ts added; build green"
+    },
+    "P3_step12_cell_typing": {
+      "state": "done",
+      "at": "2026-09-16 02:32:56",
+      "detail": "slide overlay coloured by class; backend palette changed to red tumour / amber immune / green support so the PNGs and the overlay agree; per-cell classes re-fetched on every threshold change; geometry loading hoisted to DemoPage"
+    },
+    "P4_compartment_geometry_backend": {
+      "state": "done",
+      "at": "2026-09-16 02:37:33",
+      "detail": "geometry.anatomy() gives both bands from one distance transform; step13/rings.py traces them into level-0 outlines (collinear vertices dropped, ~9 in 10); region{r}/rings.json written and cache-checked; GET /compartments/{he}/regions/{rank}/geometry; synthetic-field test passes (nesting, annulus holes, coordinates)"
+    },
+    "P5_step13_compartments": {
+      "state": "done",
+      "at": "2026-09-16 02:42:12",
+      "detail": "step 13 draws nucleus/measured band/other fork on the pannable slide; measured filled, alternate dashed; layer toggles; click a cell to fly to it; width slider rebuilds the band"
+    },
+    "P6_step14_per_cell": {
+      "state": "done",
+      "at": "2026-09-16 02:52:02",
+      "detail": "slide overlay painted by DAB optical density (display ceiling from the 95th percentile of the data, not fixed); click a cell on the slide or a dot on the scatter and get the same card - both numbers, the cuts they are judged against, and the verdict"
+    },
+    "P7_step15_binning": {
+      "state": "done",
+      "at": "2026-09-16 02:52:02",
+      "detail": "slide overlay coloured by level from a new GET /binning/{he}/cells - the bin and the positivity verdict are computed server-side so the browser never re-implements the partial-staining rule; per-cell card plus a totals row"
+    },
+    "P8_history_backend": {
+      "state": "done",
+      "at": "2026-09-16 04:10:29",
+      "detail": "history_service + /history endpoints. Verified: archive 505MB in 0.65s, open in 0.02s, total bytes conserved (2685.5MB either way), demo empties completely when all five are filed, shared H&E work moves only with the last marker and returns with the first one opened. State is read off disk (which report.json exist), never from a written flag."
+    },
+    "P9_previous_cases_frontend": {
+      "state": "done",
+      "at": "2026-09-16 04:15:31",
+      "detail": "home page section + hero button; case cards with the stored H&E thumbnail; five marker rows each showing Scored / Step N of 17 / Not started with the score; Replay, Resume, Score it, File away, Delete (two-step confirm). apiDelete added to the client."
+    },
+    "P10_replay_mode": {
+      "state": "done",
+      "at": "2026-09-16 04:15:31",
+      "detail": "openRun renames the run back BEFORE navigating, then DemoPage loadCase picks up the restored sidecar and reuses its upload ids, so every step finds its cache. Replay banner states nothing is recomputed. Reaching the end of the walkthrough files the run automatically."
+    },
+    "P11_cd44_end_to_end": {
+      "state": "done",
+      "at": "2026-09-16 04:04:35",
+      "detail": "all five markers scored in 78 min. A CD44 65%/1 \u00b7 F ABCC4 95%/1.5 \u00b7 R ABCC11 60%/1 \u00b7 U N-cadherin 100%/1.5 \u00b7 W Pan-cadherin 85%/1. Workbook CAN_00270_scores.xlsx. Every marker carries the denominator-shortfall caveat (76-83% fewer nuclei than the H&E) and the machine-confirmed-alignment caveat; U is outside its expected 70-85% range."
+    },
+    "P12_close_out": {
+      "state": "done",
+      "at": "2026-09-16 06:10:47",
+      "detail": "npm run build green, npm run lint clean (--max-warnings 0), backend imports 102 routes; docs/PREVIOUS_CASES_AND_SLIDE_OVERLAYS.md written"
+    },
+    "P13_archive_all_markers": {
+      "state": "done",
+      "at": "2026-09-16 06:10:47",
+      "detail": "all five markers filed into data/history (2.6 GB); data/demo down to 48 KB of empty directories. Verified by replaying A and F from history end to end in Chromium."
+    },
+    "P14_fix_orphan_sweep": {
+      "state": "done",
+      "at": "2026-09-16 04:21:53",
+      "detail": "maintenance_service.is_orphaned() splits on '__' and orphans a pair only when a half is genuinely gone. Verify: a backend start on a machine with completed runs should free 0 MB."
+    },
+    "P15_bugs_found_by_the_browser_check": {
+      "state": "done",
+      "at": "2026-09-16 05:55:35",
+      "detail": "Four real bugs the build could not have caught. (1) useTissueType cleared its cached report on an inputsKey that step 7 changes a moment after load, while the cache lookup keyed on uploadId alone - so step 8 offered a 10-30 min recompute on EVERY already-processed slide. (2) QCPanel's failed-probe branch had no Skip, so a failed QC probe was a dead end with no way forward. (3) compartments fetch timed out at 30s when the real cost is ~18s cached and minutes uncached. (4) client reported timeouts as 'signal is aborted without reason'. Also: SlideOverlayViewer rebuilt the whole OSD viewer whenever draw() changed; fly-to focus framed the field so loosely that its own cells fell under the draw threshold."
+    },
+    "P16_verified_in_browser": {
+      "state": "done",
+      "at": "2026-09-16 06:10:47",
+      "detail": "steps 11-15 photographed zoomed in on the real CD44 and ABCC4 slides: nuclei light blue, classes red/amber/green, compartments red nucleus + green measured membrane ring, per-cell DAB ramp, bins grey-to-amber. Shots in walkthrough_shots/ and walkthrough_shots_F/. Delete tested on a synthetic case - removes from both trees."
+    },
+    "P17_membrane_shell": {
+      "state": "done",
+      "at": "2026-09-16 11:16:55",
+      "detail": "A membrane marker measures the outer 1.5um of its 4um body instead of the whole annulus, so nucleus/cytoplasm/membrane are three disjoint regions. A 65->60, F 95->90, R 60->55; U and W untouched. Verified in the browser."
+    }
+  },
+  "notes": [
+    "02:45 user asked for all five markers of CAN_00270 to be scored overnight, unattended.",
+    "Batch started 02:46 BEFORE the history work, so the long compute has the night; nothing archives until it finishes.",
+    "Only 25 GB free on C:. Five markers in demo is ~2.8 GB; archiving is a rename, so it costs nothing extra.",
+    "Bash heredocs here mangle backticks - write patch scripts to the scratchpad and run them instead.",
+    "04:15 FOUND A PRE-EXISTING BUG: maintenance_service's start-up orphan sweep deleted 483.2 MB - every pair-keyed dir (steps 10-16) on every backend restart, because '<he>__<ihc>' is never a known upload id. Fixed with is_orphaned(); unit-tested. Marker A's steps 10-16 were the casualty and are being re-run."
+  ]
+}

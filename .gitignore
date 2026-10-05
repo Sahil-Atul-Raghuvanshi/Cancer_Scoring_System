@@ -31,18 +31,30 @@ dist/
 # and the trained tissue_type checkpoints inherit those terms through their
 # training data. models.lock.json records the bytes and sha256 of each one and
 # setup.py fetches and verifies them. The .manifest.json files beside the
-# checkpoints ARE committed - see Breast_Cancer_IHC_Tissue_Scoring_Demo/models/.gitignore.
+# checkpoints ARE committed - see models/.gitignore.
 *.pth
 *.ckpt
 *.pt
 !**/*.manifest.json
 
-# --- Slides, tiles and everything derived from them ----------------------
-# Whole-slide images dominate the tree by two orders of magnitude, and uploads
-# belong to whoever dropped them on a local demo.
+# --- storage/: every byte that is not code ------------------------------
+# One folder at the root, ignored whole. See STORAGE_VERSIONING.md.
+#
+#   storage/
+#     data/                 SHARED by every version, read-only: original/ (BRACS,
+#                           BACH, BCSS, the OncoStem slides and annotations - ~43 GB,
+#                           nothing can regenerate them) and the client documents
+#     v<N>_data/            ONE PER VERSION of the pipeline: data/ (what its runs
+#                           produced), models/, results/, reports/, VERSION.md
+#     decrecated_code/      retired code, kept on disk for the record, never run
+#     ACTIVE_DATA_VERSION   the version the app shows, chosen in the web page
+/storage/
+# Bare `data/` stays ignored too: several sub-projects keep a local data/ folder.
 data/
 images/
 uploads/
+
+
 
 # --- Reference PDFs ------------------------------------------------------
 # Two 162 MB scans of the same source document.
@@ -53,6 +65,17 @@ uploads/
 # and not needed once models/grandqc/ is populated.
 #   python setup.py --clone-grandqc
 grandqc/
+
+# --- The isolated registration environment -------------------------------
+# `.venv/` above already covers tissue_scoring_demo/valis_service/.venv, which
+# is ~3 GB of VALIS, torch and numpy 1.x. These are its scratch directories:
+# the probe/smoke/tuning runs write VALIS's own thumbnails, overlap images and
+# registrar pickles (~270 MB per registered pair), all reproducible by
+# re-running the scripts beside them. The scripts themselves are committed.
+tissue_scoring_demo/valis_service/_smoke/
+tissue_scoring_demo/valis_service/_real/
+tissue_scoring_demo/valis_service/_tune/
+tissue_scoring_demo/valis_service/_probe_jvm.json
 
 # --- OS ---
 Thumbs.db
@@ -65,3 +88,8 @@ Desktop.ini
 # renamed rather than deleted, so those 2 commits stay recoverable; it is not
 # part of this history. Delete the directory once you are sure you want it gone.
 .git.disabled-*/
+
+# The H&E campaign's live state - a pid, a heartbeat and per-stage timings, rewritten
+# every minute while `scripts/10_he_campaign.py` runs - now lives beside the per-stage
+# logs it describes, in tissue_type_model_training/reports/he_campaign/, which that
+# folder's own .gitignore already covers.

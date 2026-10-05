@@ -1,0 +1,657 @@
+/* ============================================================================
+   Step 8 — tissue-type segmentation.
+
+   Three visual rules run through this file.
+
+   **The class colours come from the server, never from here.** Every dot, chip and
+   bar is filled from `entry.colour`, which is the same value `overlay.py` draws the
+   map with. A palette in this file would be a second answer to "what colour is
+   in-situ disease", shown next to the picture it is supposed to describe, and the
+   legend would quietly start lying about the map above it.
+
+   **The scored class is the only one with emphasis.** One of the three answers
+   enters the final score and two do not, and that asymmetry is the content of the
+   step — so `--scored` gets the ring and the others do not, rather than three
+   equally weighted cards that leave the reader to work it out.
+
+   **The class bars share one scale.** They are widths on the classified total, not
+   on their own maxima, so the three of them add to the full width. Scaling each to
+   itself would draw three full bars and destroy the only comparison that matters.
+   ========================================================================== */
+
+.tt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  text-align: left;
+}
+
+.tt-skeleton {
+  height: 320px;
+  border-radius: var(--radius-lg);
+}
+
+/* --- 1. The headline ------------------------------------------------------ */
+
+.tt-headline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.tt-headline__lead {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-base);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.tt-headline__lead strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.tt-headline__figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-4);
+}
+
+.tt-headline__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-left: 2px solid var(--border-default);
+}
+
+/* The tumour share is what every later step is gated on, so it is the one figure
+   drawn as a headline rather than as one of four equals. */
+.tt-headline__figure--hero {
+  border-left-color: var(--accent);
+}
+
+.tt-headline__value {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.tt-headline__figure--hero .tt-headline__value {
+  color: var(--accent);
+}
+
+.tt-headline__caption {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.tt-headline__sub {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+/* --- 2. The map and its toggle -------------------------------------------- */
+
+.tt-map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.tt-map__frame {
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+}
+
+.tt-map__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tt-map__caption {
+  max-width: 78ch;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+
+.tt-map__caption strong {
+  color: var(--text-primary);
+}
+
+.tt-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tt-toggle__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.tt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.tt-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.tt-chip--on {
+  border-color: var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+/* Off is drawn as absent rather than as merely unselected, because that is what
+   the picture does: an unselected class is not recoloured, it is not drawn. */
+.tt-chip:not(.tt-chip--on) .tt-chip__dot {
+  opacity: 0.25;
+}
+
+.tt-chip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.tt-chip__figure {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+/* --- 3. The three answers ------------------------------------------------- */
+
+.tt-classes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.tt-class {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.tt-class--scored {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.tt-class__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tt-class__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.tt-class__label {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tt-class__bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.tt-class__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.tt-class__figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.tt-class__share {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.tt-class__blurb {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* --- 4. Certainty --------------------------------------------------------- */
+
+.tt-confidence {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .tt-confidence {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tt-confidence__figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.tt-confidence__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tt-confidence__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tt-confidence__text p {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* --- 5. The caveats ------------------------------------------------------- */
+
+.tt-caveats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+}
+
+.tt-caveats__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tt-caveats__intro {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.tt-caveats__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-caveat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-left: 2px solid var(--border-default);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--bg-panel);
+}
+
+.tt-caveat--blocking {
+  border-left-color: var(--danger, #f87171);
+}
+
+.tt-caveat--warning {
+  border-left-color: var(--warn, #fbbf24);
+}
+
+.tt-caveat__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tt-caveat__headline {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tt-caveat__detail {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* --- 6. The disclosure ---------------------------------------------------- */
+
+.tt-detail {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+}
+
+.tt-detail > summary {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.tt-detail[open] > summary {
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+
+.tt-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.tt-detail__intro,
+.tt-detail__foot {
+  margin: 0;
+  max-width: 82ch;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-tertiary);
+}
+
+.tt-detail__notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-4);
+  max-width: 82ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.tt-citation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+
+/* --- Running -------------------------------------------------------------- */
+
+.tt-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  text-align: left;
+}
+
+.tt-progress__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tt-progress__phase {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.tt-progress__pct {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.tt-progress__track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.tt-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.tt-progress__detail {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.tt-progress__note {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* --- Setup and ready ------------------------------------------------------ */
+
+.tt-setup,
+.tt-ready {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  text-align: left;
+}
+
+.tt-setup__lead,
+.tt-ready__lead {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-base);
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+
+.tt-setup__note,
+.tt-ready__note,
+.tt-ready__warn,
+.tt-ready__licence {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.tt-ready__warn strong {
+  color: var(--text-primary);
+}
+
+.tt-ready__licence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+}
+
+.tt-setup__note code,
+.tt-setup__models .mono {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.tt-setup__models {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.tt-setup__problem {
+  color: var(--text-tertiary);
+}
+
+/* The run-or-skip gate. Two real buttons side by side rather than one primary with
+   a quiet link beside it: on step 2 skipping is a legitimate answer and should read
+   as one, and here it is the difference between waiting half an hour and not. */
+.tt-gate__choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* --- The pass, painting itself onto the slide ----------------------------- */
+
+/* Sits inside `.tt-progress`, between the bar and its notes. The image and the two
+   canvases are one stack: the frame establishes the box, the image fills it, and each
+   canvas is stretched over the same box. The canvases carry their own aspect through
+   their backing store - set from the slide's dimensions in `TissueTypePainting` - so
+   nothing here has to know the shape of the slide. */
+.tt-paint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+}
+
+.tt-paint__frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+  line-height: 0;
+}
+
+/* Dimmed under the paint for the same reason the finished `map` panel dims the scan:
+   the colours have to read as an overlay rather than as part of the section. */
+.tt-paint__slide {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: brightness(0.62) saturate(0.85);
+}
+
+/* The canvases themselves are `components/paint/paint.css` - shared with step 11, which
+   paints the same model's answers onto one region rather than onto the whole section. */
+
+.tt-paint__waiting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  background: rgba(6, 8, 13, 0.45);
+}
+
+.tt-paint__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.tt-paint__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.tt-paint__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.tt-paint__caption {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-xs);
+  line-height: 1.65;
+  color: var(--text-tertiary);
+}

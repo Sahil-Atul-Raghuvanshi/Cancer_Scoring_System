@@ -1,0 +1,26 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+.env.local
+*.local
+.eslintcache
+
+# --- Large binary assets (kept out of git, live on disk) ---
+images/
+data/
+docs/*.pdf
+
+# --- OS ---
+Thumbs.db
+.DS_Store

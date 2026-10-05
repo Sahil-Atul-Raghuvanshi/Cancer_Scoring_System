@@ -3,22 +3,68 @@
 Breast cancer IHC tissue scoring from whole-slide images, plus the training
 projects that produced the models it serves.
 
+Three code folders, named for the stage each one is, and **one gitignored
+`storage/` folder that holds every byte that is not code**. Inside it, the inputs
+every version shares (`storage/data/`) are kept apart from what each version of
+the pipeline produced (`storage/v1_data/`, `storage/v2_data/`, ...). See
+[STORAGE_VERSIONING.md](STORAGE_VERSIONING.md).
+
 ```
 Cancer_Scoring_System/
 ├── setup.py / setup.bat                    one command to make a clone runnable
+├── start.bat / stop.bat                    run the demo: backend, then frontend
+├── data_versions.py                        which storage/v<N>_data/ the code uses
+├── STORAGE_VERSIONING.md                   what goes where, and how to start v2
 ├── models.lock.json                        every checkpoint, its sha256, its source
 ├── tools/drive_fetch.py                    selective fetch from the Drive mirror
 │
-├── Breast_Cancer_IHC_Tissue_Scoring_Demo/  ← the web app
-│   ├── backend/                            FastAPI, the 17-step pipeline
+├── tissue_label_generation/                stage 1 - BEETLE teacher → labelled regions
+├── tissue_type_model_training/             stage 2 - trains step 8's tile classifier
+├── tissue_scoring_demo/                    stage 3 - the web app
+│   ├── backend/                            FastAPI, the 19-step pipeline
 │   ├── frontend/                           React + Vite + OpenSeadragon
-│   ├── models/                             checkpoints (downloaded, not committed)
-│   └── docs/                               pipeline guide and training plans
+│   └── docs/                               guides, design notes, research, progress logs
+├── slide_registration/                     H&E→IHC registration + the overnight scoring chain
+├── score_all_slides/                       unattended "score every case" driver (code only)
+├── review_reports/                         builds the .docx reviews (python review_reports/run.py)
 │
-├── bcss_bracs_hchannel_resnet18/           trains step 8's tile classifier
-├── pixel_unet_resnet18/                    the pixel-wise U-Net alternative
-└── bracs_roi_to_mask_using_beetle/         BEETLE teacher → BRACS in-situ labels
+└── storage/                                ← gitignored: everything that is not code
+    ├── data/                               SHARED by every version, READ-ONLY
+    │   ├── original/                       BRACS, BACH, BCSS, OncoStem slides + annotations
+    │   └── oncostem_docs/ ...              client documents
+    ├── v1_data/                            everything version 1 produced
+    │   ├── version.json / VERSION.md       its storage layout, and what it is
+    │   ├── data/                           demo/, history/, registration/, score_all_slides/,
+    │   │                                   tissue_label_generation/, tissue_type_model_training/ ...
+    │   ├── models/                         every checkpoint it scored with
+    │   ├── results/                        deliverables: score CSVs, DECISIONS.md, review .docx
+    │   └── reports/                        PIPELINE_PROBLEMS_* and review figures
+    ├── decrecated_code/                    retired code (VALIS, one-off runs, failed experiments)
+    └── ACTIVE_DATA_VERSION                 the version the app shows, chosen in the web page
 ```
+
+Each stage feeds the next: stage 1 labels the regions stage 2 trains on, and
+stage 2 publishes the checkpoint stage 3 serves.
+
+## Where the data lives
+
+**Nothing but source code sits outside `storage/`.** Every path is resolved
+through [`data_versions.py`](data_versions.py), so moving storage means changing
+one constant there.
+
+| Directory | Size | Replaceable? |
+| --- | --- | --- |
+| `storage/data/original/` | ~43 GB | **No.** BRACS, BACH, BCSS and the OncoStem slides: hours of download over services that rate-limit, and nothing here regenerates them. Shared by every version; nothing writes into it. |
+| `storage/vN_data/data/tissue_label_generation/` | ~7 GB | Yes — `runs/` at ~25 s a region, `regions/` in minutes from `runs/`. |
+| `storage/vN_data/data/tissue_type_model_training/` | ~6 GB | Yes — re-cut from the two above by `scripts/02_export.py`. |
+| `storage/vN_data/data/demo/` | varies | Yes — rebuilt by re-running the pipeline on a slide. |
+| `storage/vN_data/models/` | ~2.2 GB | Fetched by `setup.py` against `models.lock.json`. A version without its own inherits the newest earlier version's. |
+
+**Which version the demo shows is chosen in the web page:** it asks on opening
+when there is more than one, and the header's **Version** menu switches at any
+time. If the code can no longer open a version's data (an older storage layout),
+the data is kept as it is and the app opens the latest version instead, saying
+so on the page.
 
 ## Quick start
 
@@ -30,7 +76,6 @@ cd Cancer_Scoring_System
 
 python setup.py --drive-folder <models-folder-id>    # or setup.bat on Windows
 
-cd Breast_Cancer_IHC_Tissue_Scoring_Demo
 start.bat                                            # stop.bat to shut down
 ```
 
@@ -74,7 +119,7 @@ link-time archives that are never loaded at runtime, `dnnl.lib` alone being
 Delete it whenever the disk is tight:
 
 ```bash
-rm -rf Breast_Cancer_IHC_Tissue_Scoring_Demo/backend/.venv
+rm -rf tissue_scoring_demo/backend/.venv
 python setup.py                      # rebuilds it, then re-verifies the models
 ```
 
@@ -111,8 +156,8 @@ only — the web app never loads it — so setup skips it unless you ask for it.
 GrandQC, BEETLE and both pretrained backbones come from permanent archives.
 The `invasive_tile_*.pt` files are this project's own training output, so the
 only ways to get them are the Google Drive mirror or a retraining run
-(`bcss_bracs_hchannel_resnet18/scripts/04_train.py`, then `05_publish.py`,
-which writes straight into `models/tissue_type/` so the trained model and the
+(`tissue_type_model_training/scripts/04_train.py`, then `05_publish.py`,
+which writes straight into `storage/vN_data/models/tissue_type/` so the trained model and the
 served model stay the same file). **Keep the Drive mirror alive.**
 
 The Drive mirror is the `models/` folder uploaded with its tree intact.
@@ -147,7 +192,7 @@ downloaded `.pt` cannot be loaded at all.
 Not redistributable as a whole. The code is this project's; the model weights
 and training data are not, and the non-commercial terms above travel with
 every score the app produces. See
-`Breast_Cancer_IHC_Tissue_Scoring_Demo/models/README.md` for the full
+`storage/v1_data/models/README.md` for the full
 provenance, and each training project's README before shipping anything
 distilled from BEETLE.
 

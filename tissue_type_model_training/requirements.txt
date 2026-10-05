@@ -1,0 +1,57 @@
+# Extra packages the training notebooks need, on top of the demo backend's own
+# requirements.txt and requirements-qc.txt.
+#
+# Install into the BACKEND's virtualenv, not a new one:
+#
+#     cd tissue_scoring_demo\backend
+#     .venv\Scripts\python -m pip install -r ..\..\tissue_type_model_training\requirements.txt
+#
+# One interpreter is the point. Everything here imports the pipeline's own colour
+# deconvolution - `app.common.stains`, `step06_colour_deconvolution` - so that the
+# model is trained on the same haematoxylin channel it will be served. A separate
+# venv would make `import app.*` a path trick rather than the real thing.
+#
+# Already present from the backend and deliberately NOT repeated here, so there is
+# one place each version is pinned: torch (2.8.0+cpu), torchvision (0.23.0+cpu),
+# numpy, Pillow, scipy, tifffile, tiffslide, tqdm, pytest.
+#
+# Do NOT upgrade torch to satisfy a notebook. requirements-qc.txt records why:
+# torch >= 2.9 unpacks a licence tree deep enough to exceed MAX_PATH under this
+# project's path, and pip fails mid-install leaving a torch that cannot be cleanly
+# uninstalled.
+
+# --- notebooks ---------------------------------------------------------------
+# jupyterlab is NOT installable under this project's path: it unpacks a Galata
+# test-extension tree (jupyterlab/galata/@jupyterlab/galata-extension/static/
+# vendors-node_modules_fontsource-variable_noto-sans-sc_index_css.<hash>.js) that
+# exceeds MAX_PATH here, and pip fails with OSError errno 2 partway through. Same
+# class of problem requirements-qc.txt records for torch >= 2.9.
+#
+# It is not needed. Every notebook is a thin wrapper over src/, and scripts/ runs
+# the identical code from the command line - which is how the models in
+# models/tissue_type/ were actually trained. Install jupyterlab only if you want
+# to read the notebooks interactively, and then either enable long paths
+#
+#     Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+#         -Name LongPathsEnabled -Value 1     # admin, then reboot
+#
+# or use the classic notebook (`pip install notebook`), which has no Galata tree.
+# jupyterlab>=4.2
+ipykernel>=6.29
+
+# --- metrics and tables ------------------------------------------------------
+# scikit-learn for GroupKFold and the confusion matrix; report.py implements the
+# figures the plan actually reports (per-class Dice, the invasive/in-situ cell, the
+# paired bootstrap) itself, because those need to be exactly the plan's definitions
+# rather than approximately a library's.
+scikit-learn>=1.5
+pandas>=2.2
+
+# --- figures -----------------------------------------------------------------
+matplotlib>=3.9
+
+# --- the BCSS download (route 1: the Google Drive folder) --------------------
+# Route 2 is the authors' girder script, which brings its own dependencies:
+#   pip install girder-client scikit-image imageio
+# See src/download_bcss.py for when to prefer which.
+gdown>=5.2

@@ -1,0 +1,86 @@
+[2026-09-15 15:17:42] approach study for CAN_00270
+[2026-09-15 15:17:42] checkpoint: 1_rebuild -> waiting (C:\Users\Coditas\Desktop\Healthcare_Projects\Cancer_Scoring_System\scoring_rebuild_stdout.txt)
+[2026-09-15 16:37:13] checkpoint: 1_rebuild -> done (pipeline produced scores)
+[2026-09-15 16:37:13] checkpoint: 2_internal_control -> running
+[2026-09-15 16:57:22] checkpoint: 2_internal_control -> done (study_internal_control.txt)
+[2026-09-15 16:57:22] checkpoint: 3_compare -> running
+[2026-09-15 16:57:24] checkpoint: 3_compare -> done (study_approaches.txt)
+CAN_00270: 3 marker(s) with reader data
+
+==============================================================================
+PERCENT POSITIVE  (tolerance = each marker's own reader spread)
+==============================================================================
+variant                                MAE    bias    rho  inside
+P0 area-weighted (shipped)            11.7   +11.7   0.87   1/3
+P3 pooled over all cells              13.3   +13.3   0.87   0/3
+P3 plain mean of regions              11.7    +8.3   0.87   1/3
+P3 cell-count weighted                13.3   +13.3   0.87   0/3
+P1 dominant region only               11.7   +11.7   0.87   1/3
+
+  per marker, shipped cuts:
+        R       U       W     (readers)
+       65     100      85   P0 area-weighted (shipped)
+       70     100      85   P3 pooled over all cells
+       65     100      75   P3 plain mean of regions
+       70     100      85   P3 cell-count weighted
+       65     100      85   P1 dominant region only
+     55.0    80.0    80.0   READERS
+
+==============================================================================
+INTENSITY  (tolerance = each marker's own reader spread)
+==============================================================================
+variant                                MAE    bias    rho  inside
+
+  internal control (SOP 5.7) measured:
+    R: tumour 0.3005 OD / control 0.2677 OD = 1.122
+    U: tumour 0.4399 OD / control 0.4990 OD = 0.882
+    W: tumour 0.3137 OD / control 0.3050 OD = 1.029
+
+I0/I3 mean, shipped bands            0.292  -0.292   0.87   2/3
+I0/I3 median, shipped bands          0.292  -0.292   0.87   2/3
+I0/I3 p75, shipped bands             0.292  -0.292   0.87   2/3
+I0/I3 p90, shipped bands             0.167  +0.125   0.87   3/3
+I1 mean, bands rescaled to range     0.917  -0.792   0.87   1/3
+I2 tumour/control, rescaled          0.917  -0.292  -1.00   1/3
+
+  rho over five markers: +1.00 is a perfect ordering (p about 0.008),
+  and anything under about +0.60 is indistinguishable from chance here.
+
+  The raw densities this pipeline produces span 0.300 to 0.440 OD.
+  The shipped band table needs 0.80 OD for 1.75 and 0.80 for 2.0, so bands [1.5, 1.75, 2.0] are effectively unreachable.
+
+[2026-09-15 16:57:24] checkpoint: 4_verify -> running
+[2026-09-15 16:57:26] checkpoint: 4_verify -> done (study_verify.txt)
+case CAN_00270: re-deriving 5 marker(s) from the stored rows
+
+A: no stored rows; nothing to verify
+F: no stored rows; nothing to verify
+OK  R ABCC11 (MRP8)          recomputed  65 % / 1      reported  65 % / 1      (572 rows, raw 64.65 % / 0.3005 OD)
+OK  U N-cadherin (CDH2)      recomputed 100 % / 1.5    reported 100 % / 1.5    (894 rows, raw 97.90 % / 0.4399 OD)
+     ^ outside the 70-85 % range OncoStem has reported for N-cadherin. The arithmetic is right; the cut points are unfitted.
+OK  W Pan-cadherin           recomputed  85 % / 1      reported  85 % / 1      (642 rows, raw 84.41 % / 0.3137 OD)
+
+Every reported pair re-derives from the stored rows.
+
+[2026-09-15 16:57:26] checkpoint: 5_region_grid -> running
+[2026-09-15 16:57:27] checkpoint: 5_region_grid -> done (study_region_grid.txt)
+CAN_00270: both numbers against the four readers' consensus
+
+PERCENT POSITIVE
+ mk marker           ours  readers    diff  their spread  within +/-10
+  R ABCC11            65%    55.0%   +10.0         10.0           yes
+  U N-cadherin       100%    80.0%   +20.0          0.0            NO
+  W Pan-cadherin      85%    80.0%    +5.0          0.0           yes
+
+    mean absolute error 11.7 points   bias +11.7 points   2 of 3 inside the human spread
+
+INTENSITY (0-2 scale; no pass band - see Q4)
+ mk marker           ours  readers    diff  their spread
+  R ABCC11            1.0    1.125  -0.125        0.500
+  U N-cadherin        1.5    1.812  -0.312        0.500
+  W Pan-cadherin      1.0    1.438  -0.438        0.250
+
+    mean absolute error 0.292   bias -0.292   readers disagree among themselves by up to 0.500
+
+[2026-09-15 16:57:29] checkpoint: 6_complete -> done (all evidence gathered; the decision is a person's)
+[2026-09-15 16:57:29] study complete - see study_*.txt and SCORING_APPROACHES.md

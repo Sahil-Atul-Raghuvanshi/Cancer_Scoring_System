@@ -1,0 +1,14 @@
+# The isolated registration environment. Python 3.11 - see README.md for why
+# this cannot share the backend's interpreter.
+#
+# Only the two direct requirements are pinned. Everything else - numpy 1.26,
+# SimpleITK, scyjava, jpype1, cjdk, torch, kornia - comes in as a VALIS
+# dependency at whatever version it asks for, and pinning them here would only
+# create a second place for those constraints to drift out of date.
+
+valis-wsi==1.2.0
+
+# NOT optional, and not a VALIS dependency: the `pyvips` wheel is only the
+# Python binding. Without this, importing it fails with
+# "cannot load library 'libvips-42.dll'".
+pyvips-binary==8.18.6

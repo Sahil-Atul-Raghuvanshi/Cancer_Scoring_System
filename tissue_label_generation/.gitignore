@@ -1,0 +1,13 @@
+# This folder holds code only. Everything it reads or writes lives under the
+# workspace's one data tree - data/original/ for the BRACS and BACH sources,
+# data/tissue_label_generation/ for the teacher's runs/ and the regions/ it
+# exports - and the root .gitignore covers all of it.
+
+# Batch reports are regenerable, but small and often worth keeping by hand.
+# Ignore the default one only.
+reports/batch.json
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

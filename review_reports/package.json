@@ -1,0 +1,8 @@
+{
+  "name": "review-reports",
+  "private": true,
+  "description": "Builds the .docx review documents in results/ (see run.py).",
+  "dependencies": {
+    "docx": "9.8.1"
+  }
+}

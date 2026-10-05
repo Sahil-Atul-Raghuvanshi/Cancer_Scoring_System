@@ -1,0 +1,32 @@
+{
+  "1_rebuild": {
+    "state": "done",
+    "at": "2026-09-15 16:37:13",
+    "detail": "pipeline produced scores"
+  },
+  "2_internal_control": {
+    "state": "done",
+    "at": "2026-09-15 16:57:22",
+    "detail": "study_internal_control.txt"
+  },
+  "3_compare": {
+    "state": "done",
+    "at": "2026-09-15 16:57:24",
+    "detail": "study_approaches.txt"
+  },
+  "4_verify": {
+    "state": "done",
+    "at": "2026-09-15 16:57:26",
+    "detail": "study_verify.txt"
+  },
+  "5_region_grid": {
+    "state": "done",
+    "at": "2026-09-15 16:57:27",
+    "detail": "study_region_grid.txt"
+  },
+  "6_complete": {
+    "state": "done",
+    "at": "2026-09-15 16:57:29",
+    "detail": "all evidence gathered; the decision is a person's"
+  }
+}

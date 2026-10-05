@@ -1,0 +1,330 @@
+/* ============================================================================
+   Step 15 - intensity binning.
+
+   The layout's job is to keep two scales apart that look alike: the per-cell
+   0/1+/2+/3+, which is machinery, and the per-slide 0-2, which is the thing
+   reported. They get separate blocks with their own headings, because a reader
+   who takes one for the other has misunderstood the output rather than a detail.
+   ========================================================================== */
+
+.bn-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5, 1.25rem);
+}
+
+.bn-panel--waiting,
+.bn-panel--error {
+  padding: var(--space-5, 1.25rem);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-lg, 12px);
+  color: var(--text-secondary);
+}
+
+.bn-panel--error {
+  border-color: var(--danger-border, rgba(255, 120, 120, 0.4));
+  color: var(--danger-text, #ffb4b4);
+}
+
+.bn-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4, 1rem);
+  flex-wrap: wrap;
+}
+
+.bn-panel__head h3 {
+  margin: 0 0 0.35rem;
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+}
+
+.bn-panel__head p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--text-secondary);
+}
+
+.bn-block h4 {
+  margin: 0 0 0.6rem;
+  font-size: var(--text-lg, 1.05rem);
+  color: var(--text-primary);
+}
+
+.bn-note {
+  margin: 0.6rem 0 0;
+  max-width: 78ch;
+  color: var(--text-secondary);
+  font-size: var(--text-sm, 0.9rem);
+}
+
+.bn-flag {
+  margin: 0.8rem 0 0;
+  max-width: 78ch;
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  border-left: 3px solid var(--warn-border, #d9a441);
+  color: var(--text-secondary);
+  font-size: var(--text-sm, 0.9rem);
+}
+
+/* --- the four per-cell levels --------------------------------------------- */
+
+.bn-bins {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3, 0.75rem);
+}
+
+.bn-bins__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: var(--space-3, 0.75rem);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md, 8px);
+  border-left-width: 3px;
+}
+
+.bn-bins__card--l0 { border-left-color: rgba(255, 255, 255, 0.25); }
+.bn-bins__card--l1 { border-left-color: #e0c9a6; }
+.bn-bins__card--l2 { border-left-color: #c98a3a; }
+.bn-bins__card--l3 { border-left-color: #8a5216; }
+
+.bn-bins__level {
+  font-size: var(--text-xs, 0.75rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+}
+
+.bn-bins__card strong {
+  font-size: var(--text-2xl, 1.5rem);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.bn-bins__share {
+  color: var(--text-secondary);
+  font-size: var(--text-sm, 0.9rem);
+}
+
+.bn-bins__copy {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+  font-size: var(--text-xs, 0.75rem);
+}
+
+/* --- the reported band table ---------------------------------------------- */
+
+.bn-bands {
+  margin-top: var(--space-3, 0.75rem);
+  border-collapse: collapse;
+  font-size: var(--text-sm, 0.9rem);
+}
+
+.bn-bands th,
+.bn-bands td {
+  padding: 0.35rem var(--space-4, 1rem) 0.35rem 0;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.bn-bands th {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+  font-weight: 500;
+}
+
+.bn-bands td {
+  color: var(--text-secondary);
+}
+
+.bn-bands td strong {
+  color: var(--accent, #7cc4ff);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- the histogram with the cuts on it ------------------------------------ */
+
+.bn-hist {
+  margin: 0;
+}
+
+.bn-hist__bars {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 8rem;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.18));
+}
+
+.bn-hist__bar {
+  flex: 1;
+  min-height: 1px;
+}
+
+.bn-hist__bar--l0 { background: rgba(255, 255, 255, 0.28); }
+.bn-hist__bar--l1 { background: #e0c9a6; }
+.bn-hist__bar--l2 { background: #c98a3a; }
+.bn-hist__bar--l3 { background: #8a5216; }
+
+.bn-hist__cut,
+.bn-hist__valley {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+}
+
+.bn-hist__cut {
+  border-left: 2px dashed var(--accent, #7cc4ff);
+}
+
+.bn-hist__valley {
+  border-left: 1px solid var(--text-tertiary, rgba(255, 255, 255, 0.4));
+}
+
+.bn-hist__cut span,
+.bn-hist__valley span {
+  position: absolute;
+  left: 0.3rem;
+  white-space: nowrap;
+  font-size: var(--text-xs, 0.7rem);
+}
+
+.bn-hist__cut span {
+  top: -0.1rem;
+  color: var(--accent, #7cc4ff);
+}
+
+.bn-hist__valley span {
+  bottom: 0.2rem;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.5));
+}
+
+.bn-hist figcaption {
+  margin-top: 0.4rem;
+  max-width: 78ch;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+  font-size: var(--text-sm, 0.9rem);
+}
+
+/* --- what the rejected schemes would have said ---------------------------- */
+
+.bn-compare {
+  margin: var(--space-3, 0.75rem) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 0.75rem);
+}
+
+.bn-compare li {
+  padding: var(--space-3, 0.75rem);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md, 8px);
+}
+
+.bn-compare__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3, 0.75rem);
+}
+
+.bn-compare__head strong {
+  color: var(--text-primary);
+}
+
+.bn-compare__delta {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.5));
+  font-size: var(--text-sm, 0.9rem);
+}
+
+.bn-compare__delta--big {
+  color: var(--warn-text, #f0c674);
+}
+
+.bn-compare p {
+  margin: 0.3rem 0 0;
+  max-width: 78ch;
+  color: var(--text-secondary);
+  font-size: var(--text-sm, 0.9rem);
+}
+
+/* --- the disclosure ------------------------------------------------------- */
+
+.bn-detail {
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  padding-top: var(--space-3, 0.75rem);
+}
+
+.bn-detail summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--text-sm, 0.9rem);
+}
+
+.bn-detail dl {
+  display: grid;
+  grid-template-columns: minmax(9rem, max-content) 1fr;
+  gap: 0.35rem var(--space-4, 1rem);
+  margin: var(--space-3, 0.75rem) 0;
+  font-size: var(--text-sm, 0.9rem);
+}
+
+.bn-detail dt {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+}
+
+.bn-detail dd {
+  margin: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.bn-detail ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.5));
+  font-size: var(--text-sm, 0.9rem);
+}
+
+.bn-detail li + li {
+  margin-top: 0.35rem;
+}
+
+/* --- the running totals under the levels ----------------------------------- */
+
+.bn-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-top: var(--space-4, 1rem);
+}
+
+.bn-totals > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-inset);
+}
+
+.bn-totals__label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.bn-totals__value {
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+}
+
+.bn-inspect {
+  margin-top: var(--space-4, 1rem);
+}

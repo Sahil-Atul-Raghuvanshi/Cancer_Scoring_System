@@ -1,0 +1,576 @@
+/* ============================================================================
+   Step 11 — refining each chosen region per pixel.
+
+   The layout is a list beside a stage, not a wall of cards, and that follows
+   from what the screen has to do: show *which region is being worked on* while
+   letting somebody study any finished one. A grid would make the first true
+   and the second awkward; a single pane would do the opposite.
+
+   The comparison pane is the screen. Everything else is navigation.
+   ========================================================================== */
+
+.refine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  text-align: left;
+}
+
+/* --- 1. what this step is doing -------------------------------------------- */
+
+.refine__intro {
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.refine__lede {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-base);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* --- 2. progress ------------------------------------------------------------ */
+
+.refine__progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+
+.refine__progressHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.refine__progressCount {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.refine__progressNow {
+  font-size: var(--text-sm);
+  color: var(--accent);
+  margin-right: auto;
+}
+
+/*
+  One bar, used at every altitude on this screen: under a region's row in the list, and
+  under the rectangle being painted. The tone carries the meaning - a working bar is
+  patches done, a done bar is the share of the square that survived - so the two are not
+  mistaken for each other at a glance.
+*/
+.refine__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.refine__barFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  /* Long enough to read as movement, short enough that a burst of windows landing
+     together does not look like an animation playing out after the fact. */
+  transition: width 240ms ease;
+}
+
+.refine__bar--done .refine__barFill {
+  background: var(--success);
+}
+
+.refine__bar--failed .refine__barFill {
+  background: var(--danger);
+}
+
+.refine__bar--waiting .refine__barFill {
+  background: var(--text-muted);
+}
+
+/* --- 2b. the pass as one strip, a segment per area -------------------------- */
+
+/*
+  One segment per region rather than one bar for the pass, because the two questions a
+  viewer has are "how far through" and "how many are there" and a single bar at 21%
+  answers only the first. The strip is the list below it in miniature.
+*/
+.refine__segments {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+
+.refine__segment {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.refine__segmentFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+.refine__segment--done .refine__segmentFill {
+  background: var(--success);
+}
+
+.refine__segment--failed {
+  /* A failed region has no fill to show, so the track itself carries the colour -
+     otherwise a failure would be indistinguishable from a region not yet started. */
+  background: var(--danger);
+}
+
+.refine__progressDetail,
+.refine__progressMessage {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* --- 3. the list and the stage --------------------------------------------- */
+
+.refine__body {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .refine__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.refine__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  /* A long selection scrolls inside its own column rather than pushing the
+     comparison off the bottom of the page. */
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.refine__row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.refine__row:hover {
+  background: var(--bg-hover);
+}
+
+.refine__row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.refine__row--open {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.refine__rowHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.refine__rowId {
+  flex: 1 1 auto;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+/*
+  The line under each bar, and it says what the bar is measuring - patches while the
+  region runs, the kept share once it is done. Without it the bar changing meaning at
+  the end of a region would be a change a viewer had to infer from its colour.
+*/
+.refine__rowFoot {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.refine__stage {
+  min-width: 0;
+}
+
+.refine__empty {
+  margin: 0;
+  padding: var(--space-6);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+}
+
+/* --- 4. the comparison ------------------------------------------------------ */
+
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.compare__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.compare__id {
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+}
+
+.compare__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.compare__position {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.compare__panels {
+  display: grid;
+  /* The arrow between the first two is a real column, so the two pictures it
+     joins stay the same width whatever the third one does. */
+  grid-template-columns: 1fr auto 1fr 1fr;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+@media (max-width: 1100px) {
+  .compare__panels {
+    grid-template-columns: 1fr;
+  }
+
+  .compare__arrow {
+    transform: rotate(90deg);
+  }
+}
+
+.compare__panel {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.compare__panel img {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.compare__panel figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.compare__panel figcaption strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.compare__arrow {
+  font-size: var(--text-2xl);
+  color: var(--accent);
+  text-align: center;
+}
+
+.compare__verdict {
+  margin: 0;
+  max-width: 82ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.compare__verdict strong {
+  color: var(--text-primary);
+}
+
+/* --- the two non-complete states ------------------------------------------- */
+
+/*
+  The three stages as one line of words, the current one lit.
+
+  It used to be a column of ticks and spinners, and the spinner was the problem: a
+  circle turning beside "Look at every pixel" says only that something is happening,
+  while the picture beside it now shows *what*. So the marks are gone and the words
+  stay, as a caption for the bar and the paint rather than as the progress itself.
+*/
+.compare__stages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.compare__stageWord + .compare__stageWord::before {
+  content: '→';
+  margin-right: var(--space-3);
+  color: var(--border-default);
+}
+
+.compare__stageWord--done {
+  color: var(--success);
+}
+
+.compare__stageWord--now {
+  color: var(--accent);
+}
+
+/* --- the live panel -------------------------------------------------------- */
+
+/*
+  Two rectangles while a region runs, three once it is done. The arrow between the first
+  two is a real column either way, so the pair does not shift sideways when the mask
+  panel joins them.
+*/
+.compare__panels--pair {
+  grid-template-columns: 1fr auto 1fr;
+}
+
+@media (max-width: 1100px) {
+  .compare__panels--pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The canvas stack sits where an <img> would, and is cropped to the same corners. */
+.compare__panel .paint {
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+/*
+  Dimmed under the paint for the same reason step 8's thumbnail is, and the same reason
+  the finished overlay dims its crop: the class colours have to read as an overlay on
+  the tissue rather than as part of it.
+*/
+.compare__panel--live .paint > img {
+  filter: brightness(0.62) saturate(0.85);
+}
+
+/* A region that has not started has no picture yet - its crop is read when its turn
+   comes. The frame is held open so the comparison does not jump when it arrives. */
+.compare__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* BEETLE's classes, named. Sent with the paint rather than written here, so this legend
+   and the one on the finished mask panel cannot drift apart. */
+.compare__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.compare__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.compare__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.compare__failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+}
+
+.compare__failedText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.compare__failedNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* --- 5. the slide-level summary -------------------------------------------- */
+
+.refine__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.refine__summaryTitle {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.refine__slides {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .refine__slides {
+    grid-template-columns: 1fr;
+  }
+
+  .refine__arrow {
+    transform: rotate(90deg);
+  }
+}
+
+.refine__slides figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.refine__slides img {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.refine__slides figcaption {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.refine__arrow {
+  font-size: var(--text-2xl);
+  color: var(--accent);
+  text-align: center;
+}
+
+.refine__totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.refine__totals dt {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.refine__totals dd {
+  margin: 2px 0 0;
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+}
+
+/* --- 6. the technical detail, folded away ---------------------------------- */
+
+.refine__details {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.refine__details > summary {
+  padding: var(--space-4) var(--space-5);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.refine__detailsBody {
+  padding: 0 var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.refine__detailsBody p {
+  margin: 0;
+  max-width: 82ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-muted);
+}

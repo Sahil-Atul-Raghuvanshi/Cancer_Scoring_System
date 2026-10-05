@@ -1,0 +1,46 @@
+/*
+  The picture, with the pass painting itself on top of it. Shared by steps 8 and 11.
+
+  Deliberately unstyled beyond the stacking: no border, no radius, no background. The
+  frame around the picture belongs to the screen using it — step 8 sits it in a panel,
+  step 11 sits it in a figure beside the "before" — and a border here would be a second
+  one inside theirs.
+*/
+
+.paint {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.paint > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/*
+  Both canvases sit exactly on the picture. Their backing stores are sized to the view's
+  aspect in the component, so stretching to 100% here is a scale and never a distortion.
+*/
+.paint__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* The paint is a grid of small squares, so it must not be smoothed into a wash when
+     the canvas is scaled up to the frame. */
+  image-rendering: pixelated;
+}
+
+/*
+  The leading edge is a thin outline on its own layer, above the paint: it marks where
+  the model is reading now and has to stay legible over whatever was just painted under
+  it. It should stay crisp rather than being resampled with the paint.
+*/
+.paint__layer--edge {
+  z-index: 1;
+  image-rendering: auto;
+}

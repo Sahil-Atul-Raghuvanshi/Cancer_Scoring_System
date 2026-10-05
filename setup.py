@@ -38,14 +38,22 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-APP = ROOT / "Breast_Cancer_IHC_Tissue_Scoring_Demo"
+APP = ROOT / "tissue_scoring_demo"
 BACKEND = APP / "backend"
 FRONTEND = APP / "frontend"
 VENV = BACKEND / ".venv"
 LOCK = ROOT / "models.lock.json"
+
+# Stdlib-only, so importing it here is safe before any venv exists. Checkpoints
+# live in the active data version's models/ (v<N>_data/models/), or the newest
+# earlier version's when this one has none; with none anywhere, models_root()
+# names the active version's own folder, which is where a fresh setup installs.
+sys.path.append(str(ROOT))  # data_versions.py lives at the repository root
+import data_versions  # noqa: E402
 
 # torch 2.9+ unpacks a licence tree deep enough to break MAX_PATH under this
 # project's already-long path; requirements-qc.txt pins <2.9 for that reason.
@@ -57,7 +65,7 @@ MIN_NODE = 18
 
 # GrandQC is a third-party clone, not our code, so it is not in this repo. The
 # backend picks it up as a sibling checkout if it is present, but does not need
-# it once models/grandqc/ is populated.
+# it once v<N>_data/models/grandqc/ is populated.
 GRANDQC_REPO = "https://github.com/cpath-ukk/grandqc.git"
 
 
@@ -342,6 +350,46 @@ def download(url: str, target: Path, expected_bytes: int) -> bool:
     return True
 
 
+def download_zip_member(url: str, member: str, target: Path, expected_bytes: int) -> bool:
+    """Fetch an archive and lift one file out of it.
+
+    InstanSeg publishes its model as a release **zip** - weights, metadata and
+    the upstream's own test tensors together - rather than as three separate
+    assets, so three lock entries share one download. The archive is fetched
+    once into the cache below and every member after the first is extracted
+    from the copy already on disk.
+
+    `expected_bytes` is the *member's* size, not the archive's, and the caller
+    still verifies the sha256 afterwards - so a mismatched or renamed member is
+    caught by the same check that catches a truncated download.
+    """
+    cache = target.parent / ".archives"
+    cache.mkdir(parents=True, exist_ok=True)
+    archive = cache / url.rsplit("/", 1)[-1]
+
+    if not archive.exists():
+        # Archive size is unknown here (the lock file records members), so the
+        # progress line is suppressed rather than shown against a wrong total.
+        if not download(url, archive, 0):
+            return False
+
+    try:
+        with zipfile.ZipFile(archive) as bundle:
+            with bundle.open(member) as source:
+                payload = source.read()
+    except (KeyError, zipfile.BadZipFile, OSError) as exc:
+        note(f"  could not read {member} from {archive.name}: {exc}")
+        return False
+
+    if expected_bytes and len(payload) != expected_bytes:
+        note(f"  {member} is {human(len(payload))}, expected {human(expected_bytes)}")
+        return False
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(payload)
+    return True
+
+
 def drive_fetch(plan: list[dict], folder: str, py: Path) -> dict[str, dict]:
     """Fetch several files from the shared Drive folder in one pass.
 
@@ -433,7 +481,9 @@ def setup_models(
         return
 
     lock = json.loads(LOCK.read_text(encoding="utf-8"))
-    models_root = ROOT / lock["models_root"]
+    # The lock's `path`s are relative to a models/ folder; which one is decided by
+    # data_versions, not by the lock's legacy "models_root" field.
+    models_root = data_versions.models_root()
     drive_folder = drive_folder or lock.get("drive_folder") or os.environ.get("MODELS_DRIVE_FOLDER")
     py = venv_python()
 
@@ -486,6 +536,11 @@ def setup_models(
             if source["kind"] == "url":
                 note(f"  {entry['path']} <- {source['url'].split('/')[2]}")
                 fetched = download(source["url"], path, entry["bytes"])
+            elif source["kind"] == "zip":
+                note(f"  {entry['path']} <- {source['url'].split('/')[2]} ({source['member']})")
+                fetched = download_zip_member(
+                    source["url"], source["member"], path, entry["bytes"]
+                )
             elif source["kind"] == "torchvision":
                 note(f"  {entry['path']} <- torchvision {source['weights']}")
                 fetched = torchvision_resave(path, py)
@@ -564,7 +619,7 @@ def setup_models(
 
 def check_manifests(p: Problems) -> None:
     """A .pt without its .manifest.json will be refused by model.load_pinned."""
-    tissue = APP / "models" / "tissue_type"
+    tissue = data_versions.models_root() / "tissue_type"
     if not tissue.exists():
         return
     for checkpoint in sorted(tissue.glob("*.pt")):
@@ -708,8 +763,7 @@ def main() -> int:
         ok("setup complete")
         if not args.check:
             print()
-            note("Start the app:")
-            note(f"  cd {APP.name}")
+            note("Start the app, from this directory:")
             note("  start.bat        (Windows)   then stop.bat to shut it down")
             print()
             note("  app  http://localhost:5173")

@@ -1,0 +1,10 @@
+case CAN_00270: re-deriving 5 marker(s) from the stored rows
+
+A: no stored rows; nothing to verify
+F: no stored rows; nothing to verify
+OK  R ABCC11 (MRP8)          recomputed  65 % / 1      reported  65 % / 1      (572 rows, raw 64.65 % / 0.3005 OD)
+OK  U N-cadherin (CDH2)      recomputed 100 % / 1.5    reported 100 % / 1.5    (894 rows, raw 97.90 % / 0.4399 OD)
+     ^ outside the 70-85 % range OncoStem has reported for N-cadherin. The arithmetic is right; the cut points are unfitted.
+OK  W Pan-cadherin           recomputed  85 % / 1      reported  85 % / 1      (642 rows, raw 84.41 % / 0.3137 OD)
+
+Every reported pair re-derives from the stored rows.

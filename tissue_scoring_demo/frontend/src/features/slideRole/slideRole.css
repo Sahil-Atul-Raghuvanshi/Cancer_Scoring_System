@@ -1,0 +1,216 @@
+/* ============================================================================
+   Which slide a step is looking at.
+
+   Two components, one idea: a case is two physical sections, and the reader should
+   never have to work out which one is on screen.
+
+   **The two slides are coloured by their stains, not by the app's palette.** The
+   H&E badge takes the haematoxylin blue and the IHC badge the DAB brown, the same
+   two hues step 6's channel panels and the server's heatmaps already use. A reader
+   who has seen one screen knows what the colours mean on every other. The accent
+   cyan is deliberately not used for either, for the reason step 6's stylesheet
+   gives: it belongs to controls, and a slide that borrowed it would look clickable.
+
+   **The badge is quiet and the picker is loud.** The badge answers a question the
+   reader did not have to ask, so it sits at the weight of an eyebrow. The picker
+   is a comparison - step 4's whole argument is that two slides have two different
+   white points - so its two cards are equal in size and carry their numbers at
+   display weight, matching `BasisToggle`.
+   ========================================================================== */
+
+/* --- the badge ------------------------------------------------------------ */
+
+.slide-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 2px var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.slide-badge__role {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.slide-badge__file {
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slide-badge--he {
+  border-color: var(--stain-hematoxylin);
+  background: rgba(74, 95, 193, 0.14);
+}
+
+.slide-badge--he .slide-badge__role {
+  color: var(--stain-hematoxylin);
+}
+
+.slide-badge--ihc {
+  border-color: var(--stain-dab);
+  background: rgba(181, 121, 63, 0.12);
+}
+
+.slide-badge--ihc .slide-badge__role {
+  color: var(--stain-dab);
+}
+
+.slide-badge--case {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+}
+
+.slide-badge--case .slide-badge__role {
+  color: var(--text-secondary);
+}
+
+/* The filename does not look like what this slot holds. A warning, not a verdict:
+   the convention is one lab's, and a slide from anywhere else will not follow it. */
+.slide-badge--suspect {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.slide-badge--suspect .slide-badge__role {
+  color: var(--warn);
+}
+
+/* --- the picker ----------------------------------------------------------- */
+
+.slide-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.slide-pick__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 560px) {
+  .slide-pick__row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.slide-pick__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.slide-pick__option:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.slide-pick__option:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.slide-pick__option.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.slide-pick__name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.slide-pick__value {
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+}
+
+.slide-pick__hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.slide-pick__reason {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* --- the wrong slide in the H&E slot --------------------------------------- */
+
+/* Steps 7-9 read the H&E. A lone uploaded IHC slide lands in that slot unchecked,
+   and the model then fails plausibly rather than loudly - 0% invasive at 0.96
+   confidence - so this has to be said before the run, not read off the result. */
+.slide-warning {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-lg);
+  background: var(--warn-soft);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.slide-warning strong {
+  color: var(--warn);
+}
+
+/* Each slide's own progress through this step. A step runs on both as one unit of
+   work, so while it is going one of these is finished and the other is not - and
+   finding that out should not require clicking the other tab. */
+.slide-pick__state {
+  margin-left: var(--space-2);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.slide-pick__state--done {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.slide-pick__state--running {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.slide-pick__state--pending {
+  background: var(--bg-inset);
+  color: var(--text-faint);
+}
+
+/* The two steps that read both slides at one moment - step 1's paired readout and
+   step 10's registration. Naming only the first would be the same half-truth this
+   component exists to remove. */
+.slide-badge--both {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+}
+
+.slide-badge--both .slide-badge__role {
+  color: var(--text-secondary);
+}

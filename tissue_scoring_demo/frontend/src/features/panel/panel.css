@@ -1,0 +1,124 @@
+/* ============================================================================
+   Step 0: biomarker + case-folder picker.
+   ========================================================================== */
+
+.case-loader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 62ch;
+  text-align: left;
+}
+
+.case-loader__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.case-loader__heading {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.case-loader__body {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+.case-loader__row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.case-loader__input {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.case-loader__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.case-loader__resolution {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.case-loader__complete {
+  color: var(--success);
+}
+
+.case-loader__partial {
+  color: var(--warn);
+}
+
+.case-loader__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+
+/* --- Marker cards ----------------------------------------------------------- */
+
+.marker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.marker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-panel);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+
+.marker-card:hover {
+  border-color: var(--border-strong);
+}
+
+.marker-card--selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.marker-card--missing {
+  opacity: 0.55;
+}
+
+.marker-card__letter {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.marker-card__name {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.marker-card__hint {
+  font-size: var(--text-xs);
+  color: var(--warn);
+}

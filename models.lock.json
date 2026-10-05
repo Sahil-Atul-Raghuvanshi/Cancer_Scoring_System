@@ -20,50 +20,28 @@
     "       byte-reproducible across torch versions."
   ],
 
-  "models_root": "Breast_Cancer_IHC_Tissue_Scoring_Demo/models",
+  "models_root": "models",
   "drive_folder": null,
 
   "files": [
     {
-      "path": "grandqc/td/Tissue_Detection_MPP10.pth",
-      "bytes": 26640273,
-      "sha256": "0e3577628a553774419a5b87a2947531988e07175b9e1a8048f53b6188f4d76e",
-      "md5": "25ccb2592f5d44b4f30143501390e078",
+      "path": "beetle/model.zip",
+      "bytes": 1857390015,
+      "sha256": "ef16c64536694d8aa51bb9d974d0d9412f6a1d76e5bed35c92b593d9dc9c933d",
+      "md5": "c1c82ed123484cd8760b6343feeee14f",
       "hash": "published",
-      "role": "runtime",
-      "licence": "CC BY-NC 4.0",
-      "used_by": "step 2 - tissue detection",
-      "sources": [
-        {"kind": "url", "url": "https://zenodo.org/records/14507273/files/Tissue_Detection_MPP10.pth?download=1"},
-        {"kind": "drive", "name": "Tissue_Detection_MPP10.pth"}
-      ]
-    },
-    {
-      "path": "grandqc/qc/GrandQC_MPP15.pth",
-      "bytes": 25384377,
-      "sha256": "6e90ec8548d4050734c30e30d5ca7fe67e84b59b1dd8ae338447dad90bae4ff1",
-      "md5": "005c8f4ce99ea1bbb8f00a9dd397574b",
-      "hash": "published",
-      "role": "runtime",
+      "role": "training",
       "licence": "CC BY-NC-SA 4.0",
-      "used_by": "step 2 - artefact segmentation at 7x (QC_MODEL_MPP=1.5, the default)",
+      "used_by": "training only - the BEETLE nnU-Net teacher that labelled the BRACS in-situ tiles. The web app never loads this. 1.8 GB.",
       "sources": [
-        {"kind": "url", "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP15.pth?download=1"},
-        {"kind": "drive", "name": "GrandQC_MPP15.pth"}
-      ]
-    },
-    {
-      "path": "grandqc/qc/GrandQC_MPP2.pth",
-      "bytes": 25366841,
-      "sha256": "703d21cb3cac5b0797b145ca55428f21ab25bad18e3738ed8a3b6d42bbfcb61c",
-      "md5": "1844b220750c19bda6a256ff996c2cfb",
-      "hash": "published",
-      "role": "optional",
-      "licence": "CC BY-NC-SA 4.0",
-      "used_by": "step 2 at 5x - roughly twice as fast as 7x",
-      "sources": [
-        {"kind": "url", "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP2.pth?download=1"},
-        {"kind": "drive", "name": "GrandQC_MPP2.pth"}
+        {
+          "kind": "url",
+          "url": "https://zenodo.org/records/16812932/files/model.zip?download=1"
+        },
+        {
+          "kind": "drive",
+          "name": "model.zip"
+        }
       ]
     },
     {
@@ -76,22 +54,246 @@
       "licence": "CC BY-NC-SA 4.0",
       "used_by": "step 2 at 10x - most accurate, slowest",
       "sources": [
-        {"kind": "url", "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP1.pth?download=1"},
-        {"kind": "drive", "name": "GrandQC_MPP1.pth"}
+        {
+          "kind": "url",
+          "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP1.pth?download=1"
+        },
+        {
+          "kind": "drive",
+          "name": "GrandQC_MPP1.pth"
+        }
       ]
     },
-
     {
-      "path": "tissue_type/invasive_tile_v2_imagenet_std.pt",
-      "bytes": 44792651,
-      "sha256": "80b58179b5aa9d35cde2189086b2f98283ea80c1c0a0e0ea5ba2936440f81ee6",
+      "path": "grandqc/qc/GrandQC_MPP15.pth",
+      "bytes": 25384377,
+      "sha256": "6e90ec8548d4050734c30e30d5ca7fe67e84b59b1dd8ae338447dad90bae4ff1",
+      "md5": "005c8f4ce99ea1bbb8f00a9dd397574b",
       "hash": "published",
       "role": "runtime",
-      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0)",
-      "used_by": "step 8 - the default checkpoint (config.tissue_type_model)",
-      "retrain_with": "bcss_bracs_hchannel_resnet18: scripts/04_train.py then scripts/05_publish.py",
+      "licence": "CC BY-NC-SA 4.0",
+      "used_by": "step 2 - artefact segmentation at 7x (QC_MODEL_MPP=1.5, the default)",
       "sources": [
-        {"kind": "drive", "name": "invasive_tile_v2_imagenet_std.pt"}
+        {
+          "kind": "url",
+          "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP15.pth?download=1"
+        },
+        {
+          "kind": "drive",
+          "name": "GrandQC_MPP15.pth"
+        }
+      ]
+    },
+    {
+      "path": "grandqc/qc/GrandQC_MPP2.pth",
+      "bytes": 25366841,
+      "sha256": "703d21cb3cac5b0797b145ca55428f21ab25bad18e3738ed8a3b6d42bbfcb61c",
+      "md5": "1844b220750c19bda6a256ff996c2cfb",
+      "hash": "published",
+      "role": "optional",
+      "licence": "CC BY-NC-SA 4.0",
+      "used_by": "step 2 at 5x - roughly twice as fast as 7x",
+      "sources": [
+        {
+          "kind": "url",
+          "url": "https://zenodo.org/records/14041538/files/GrandQC_MPP2.pth?download=1"
+        },
+        {
+          "kind": "drive",
+          "name": "GrandQC_MPP2.pth"
+        }
+      ]
+    },
+    {
+      "path": "grandqc/td/Tissue_Detection_MPP10.pth",
+      "bytes": 26640273,
+      "sha256": "0e3577628a553774419a5b87a2947531988e07175b9e1a8048f53b6188f4d76e",
+      "md5": "25ccb2592f5d44b4f30143501390e078",
+      "hash": "published",
+      "role": "runtime",
+      "licence": "CC BY-NC 4.0",
+      "used_by": "step 2 - tissue detection",
+      "sources": [
+        {
+          "kind": "url",
+          "url": "https://zenodo.org/records/14507273/files/Tissue_Detection_MPP10.pth?download=1"
+        },
+        {
+          "kind": "drive",
+          "name": "Tissue_Detection_MPP10.pth"
+        }
+      ]
+    },
+    {
+      "path": "nuclei/instanseg_brightfield_nuclei.pt",
+      "bytes": 15792317,
+      "sha256": "0c724da169d507d8dd2e206ad3675a0b1566824eee6e20ad9a0ba916311d9dd0",
+      "md5": "95a5033cd045d8ae424e178d594db526",
+      "hash": "published",
+      "role": "runtime",
+      "licence": "Apache-2.0",
+      "used_by": "step 11 - nuclei instance segmentation, run as TorchScript on the H channel",
+      "sources": [
+        {
+          "kind": "zip",
+          "url": "https://github.com/instanseg/instanseg/releases/download/instanseg_models_v0.1.1/brightfield_nuclei.zip",
+          "member": "instanseg.pt"
+        }
+      ]
+    },
+    {
+      "path": "nuclei/parity-input.npy",
+      "bytes": 786560,
+      "sha256": "7249485eca44eefcaf9c8fcd9ce7f8ab5257082c49ecd0e9f62a818e8d4096db",
+      "md5": "bd2d7285b894f7c8c2714a562f3a866a",
+      "hash": "published",
+      "role": "runtime",
+      "licence": "Apache-2.0",
+      "used_by": "step 11 - the upstream's own test tensor; app/nuclei refuses to serve a model that does not reproduce its output",
+      "sources": [
+        {
+          "kind": "zip",
+          "url": "https://github.com/instanseg/instanseg/releases/download/instanseg_models_v0.1.1/brightfield_nuclei.zip",
+          "member": "test-input.npy"
+        }
+      ]
+    },
+    {
+      "path": "nuclei/parity-output.npy",
+      "bytes": 262272,
+      "sha256": "5dc0f7ed283f786ea4edc88714f6c2d4ae38e9eec2d00bb24b7f3c46060a7c6e",
+      "md5": "2575eed6a9243ce8c2669fb9d71b89ce",
+      "hash": "published",
+      "role": "runtime",
+      "licence": "Apache-2.0",
+      "used_by": "step 11 - the expected instance map for parity-input.npy",
+      "sources": [
+        {
+          "kind": "zip",
+          "url": "https://github.com/instanseg/instanseg/releases/download/instanseg_models_v0.1.1/brightfield_nuclei.zip",
+          "member": "test-output_instance_segmentation.npy"
+        }
+      ]
+    },
+    {
+      "path": "nuclei/rdf.yaml",
+      "bytes": 2623,
+      "sha256": "57a28f865983f05b874dc2ad2c93570abaa53194e79aef63cfc5f9b4a88fd42a",
+      "md5": "f137fb814a5b2b34928add2432697078",
+      "hash": "published",
+      "role": "optional",
+      "licence": "Apache-2.0",
+      "used_by": "step 11 - the upstream bioimage.io metadata every field of the manifest was read from",
+      "sources": [
+        {
+          "kind": "zip",
+          "url": "https://github.com/instanseg/instanseg/releases/download/instanseg_models_v0.1.1/brightfield_nuclei.zip",
+          "member": "rdf.yaml"
+        }
+      ]
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov112_fix1_concat.pt",
+      "bytes": 90628545,
+      "sha256": "76b167d6eff2662d56df8b3b3b004250c33575b40f5c373c4a112c79567ee04c",
+      "hash": "local-resave",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the haematoxylin branch at 112 um",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel haematoxylin --mpp 0.5, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov112_fix1_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov112_he_concat.pt",
+      "bytes": 90628045,
+      "sha256": "3e67046529060ebdd04bbbfa34b1c8ee2593716d8b394c0dbe33ad8e109ddbb7",
+      "hash": "local-resave",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the H&E colour branch at 112 um",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel he --mpp 0.5, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov112_he_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov224_concat.pt",
+      "bytes": 90627295,
+      "sha256": "ae8afbd940ee3afa816f3010dde2904879a7570963e15231575c6347710a8d0d",
+      "hash": "local-resave",
+      "role": "runtime",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the haematoxylin branch at 224 um (config.tissue_type_model, the default)",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel haematoxylin --mpp 1.0, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov224_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov224_he_concat.pt",
+      "bytes": 90628045,
+      "sha256": "0671ef64035a6cf06997162cfe79097361b60f89d1943aa9f1fe8fc9fa13c898",
+      "hash": "local-resave",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the H&E colour branch at 224 um",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel he --mpp 1.0, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov224_he_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov448_concat.pt",
+      "bytes": 90627295,
+      "sha256": "cfc87c17dbecbfc3cb69603e174a752cb6990b55b03f4cfbfbeddd1b01aaeff1",
+      "hash": "local-resave",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the haematoxylin branch at 448 um",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel haematoxylin --mpp 2.0, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov448_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov448_he_concat.pt",
+      "bytes": 90628045,
+      "sha256": "f568ff4fe6f8fdd03c64674cd653718cbc5c437e7362b9b98bbb1f75a635eee4",
+      "hash": "local-resave",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the H&E colour branch at 448 um",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel he --mpp 2.0, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov448_he_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov672_concat.pt",
+      "bytes": 90627295,
+      "sha256": "f7237dc054c8c0f1c9a17e3d925ee10b687656396c56fd3046d5e180e9a83f3a",
+      "hash": "local-resave",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the haematoxylin branch at 672 um",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel haematoxylin --mpp 3.0, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov672_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov672_he_concat.pt",
+      "bytes": 90628045,
+      "sha256": "7f98a13d938ce94405bb92ca744b8ee6d82e37801981071be78d9eb8bf15b49b",
+      "hash": "local-resave",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the H&E colour branch at 672 um",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel he --mpp 3.0, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov672_he_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_v1_imagenet.pt",
+      "bytes": 44792139,
+      "sha256": "87ced9485cf202a12cbe0a4b62390a50152f6f578dd0d995d6d867383df3e626",
+      "hash": "published",
+      "role": "optional",
+      "licence": "CC0 + BSD-3 - the commercially clean checkpoint",
+      "used_by": "step 8 - BCSS only; cannot separate in-situ from invasive",
+      "retrain_with": "tissue_type_model_training: scripts/04_train.py without --include-dcis",
+      "sources": [
+        {
+          "kind": "drive",
+          "name": "invasive_tile_v1_imagenet.pt"
+        }
       ]
     },
     {
@@ -102,9 +304,12 @@
       "role": "optional",
       "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0)",
       "used_by": "step 8 - the v1 source split, superseded by v2",
-      "retrain_with": "bcss_bracs_hchannel_resnet18: scripts/04_train.py then scripts/05_publish.py",
+      "retrain_with": "tissue_type_model_training: scripts/04_train.py then scripts/05_publish.py",
       "sources": [
-        {"kind": "drive", "name": "invasive_tile_v1_imagenet_std.pt"}
+        {
+          "kind": "drive",
+          "name": "invasive_tile_v1_imagenet_std.pt"
+        }
       ]
     },
     {
@@ -115,25 +320,41 @@
       "role": "optional",
       "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0)",
       "used_by": "step 8 - SimCLR backbone variant",
-      "retrain_with": "bcss_bracs_hchannel_resnet18: scripts/04_train.py --init simclr",
+      "retrain_with": "tissue_type_model_training: scripts/04_train.py --init simclr",
       "sources": [
-        {"kind": "drive", "name": "invasive_tile_v1_simclr_std.pt"}
+        {
+          "kind": "drive",
+          "name": "invasive_tile_v1_simclr_std.pt"
+        }
       ]
     },
     {
-      "path": "tissue_type/invasive_tile_v1_imagenet.pt",
-      "bytes": 44792139,
-      "sha256": "87ced9485cf202a12cbe0a4b62390a50152f6f578dd0d995d6d867383df3e626",
+      "path": "tissue_type/invasive_tile_v2_imagenet_std.pt",
+      "bytes": 44792651,
+      "sha256": "80b58179b5aa9d35cde2189086b2f98283ea80c1c0a0e0ea5ba2936440f81ee6",
       "hash": "published",
       "role": "optional",
-      "licence": "CC0 + BSD-3 - the commercially clean checkpoint",
-      "used_by": "step 8 - BCSS only; cannot separate in-situ from invasive",
-      "retrain_with": "bcss_bracs_hchannel_resnet18: scripts/04_train.py without --include-dcis",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0)",
+      "used_by": "step 8 - a superseded checkpoint, kept for comparison",
+      "retrain_with": "tissue_type_model_training: scripts/04_train.py then scripts/05_publish.py",
       "sources": [
-        {"kind": "drive", "name": "invasive_tile_v1_imagenet.pt"}
+        {
+          "kind": "drive",
+          "name": "invasive_tile_v2_imagenet_std.pt"
+        }
       ]
     },
-
+    {
+      "path": "tissue_type/invasive_tile_v3_concat_bach.pt",
+      "bytes": 90627545,
+      "sha256": "dc1227eda866d779766c6487707b94f8fc4006996fdd257934842a7d2dfb3e40",
+      "hash": "local-resave",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the haematoxylin branch at 112 um",
+      "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel haematoxylin --mpp 0.5, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_v3_concat_bach",
+      "sources": []
+    },
     {
       "path": "tissue_type/pretrained/pytorchnative_tenpercent_resnet18.ckpt",
       "bytes": 46104139,
@@ -144,8 +365,14 @@
       "used_by": "training only - SimCLR backbone init (Ciga et al. 2022)",
       "note": "Take this native state_dict, NOT tenpercent_resnet18.ckpt (92,148,628 bytes), which is a Lightning checkpoint and needs weights_only=False to load.",
       "sources": [
-        {"kind": "url", "url": "https://github.com/ozanciga/self-supervised-histopathology/releases/download/nativetenpercent/pytorchnative_tenpercent_resnet18.ckpt"},
-        {"kind": "drive", "name": "pytorchnative_tenpercent_resnet18.ckpt"}
+        {
+          "kind": "url",
+          "url": "https://github.com/ozanciga/self-supervised-histopathology/releases/download/nativetenpercent/pytorchnative_tenpercent_resnet18.ckpt"
+        },
+        {
+          "kind": "drive",
+          "name": "pytorchnative_tenpercent_resnet18.ckpt"
+        }
       ]
     },
     {
@@ -156,25 +383,16 @@
       "role": "training",
       "licence": "BSD-3",
       "used_by": "training only - ImageNet backbone init",
-      "note": "Not a published asset. Produced by torch.save of ResNet18_Weights.IMAGENET1K_V1.get_state_dict(); see bcss_bracs_hchannel_resnet18/src/models.py, vendor_imagenet_weights.",
+      "note": "Not a published asset. Produced by torch.save of ResNet18_Weights.IMAGENET1K_V1.get_state_dict(); see tissue_type_model_training/src/models.py, vendor_imagenet_weights.",
       "sources": [
-        {"kind": "torchvision", "weights": "ResNet18_Weights.IMAGENET1K_V1"},
-        {"kind": "drive", "name": "resnet18-imagenet.pth"}
-      ]
-    },
-
-    {
-      "path": "beetle/model.zip",
-      "bytes": 1857390015,
-      "sha256": "ef16c64536694d8aa51bb9d974d0d9412f6a1d76e5bed35c92b593d9dc9c933d",
-      "md5": "c1c82ed123484cd8760b6343feeee14f",
-      "hash": "published",
-      "role": "training",
-      "licence": "CC BY-NC-SA 4.0",
-      "used_by": "training only - the BEETLE nnU-Net teacher that labelled the BRACS in-situ tiles. The web app never loads this. 1.8 GB.",
-      "sources": [
-        {"kind": "url", "url": "https://zenodo.org/records/16812932/files/model.zip?download=1"},
-        {"kind": "drive", "name": "model.zip"}
+        {
+          "kind": "torchvision",
+          "weights": "ResNet18_Weights.IMAGENET1K_V1"
+        },
+        {
+          "kind": "drive",
+          "name": "resnet18-imagenet.pth"
+        }
       ]
     }
   ]

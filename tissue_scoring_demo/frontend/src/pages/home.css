@@ -1,0 +1,224 @@
+/* ============================================================================
+   Home page: start a run, and watch the runs already made.
+   ========================================================================== */
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  /* Shorter than it was. The list of cases is the working part of this page,
+     and it used to start below the fold on a laptop. */
+  padding-block: var(--space-7) var(--space-5);
+  text-align: center;
+}
+
+.hero__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-default);
+  background: var(--bg-panel);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  animation: rise-in var(--dur-slow) var(--ease-out) both;
+}
+
+.hero__title {
+  max-width: 18ch;
+  font-size: var(--text-3xl);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  animation: rise-in var(--dur-slow) var(--ease-out) 80ms both;
+}
+
+.hero__title em {
+  font-style: normal;
+  background: linear-gradient(120deg, var(--accent) 10%, var(--violet) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero__lede {
+  max-width: 62ch;
+  font-size: var(--text-base);
+  line-height: 1.65;
+  color: var(--text-secondary);
+  animation: rise-in var(--dur-slow) var(--ease-out) 160ms both;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+  animation: rise-in var(--dur-slow) var(--ease-out) 240ms both;
+}
+
+/* What is on disk, in one line of prose. The row of large numerals this
+   replaced counted the pipeline's steps - a fact about the software, not about
+   the work, and one that never changed between visits. */
+.hero__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  animation: rise-in var(--dur-slow) var(--ease-out) 320ms both;
+}
+
+/* --- Sections ------------------------------------------------------------- */
+
+.section {
+  padding-block: var(--space-6);
+}
+
+.section__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.section__title {
+  font-size: var(--text-xl);
+}
+
+.section__lede {
+  max-width: 72ch;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+
+/* --- Unfinished runs ------------------------------------------------------ */
+
+.resume-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+  gap: var(--space-3);
+}
+
+.resume-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  /* Amber, the same colour the list gives a part-way marker, so the two
+     readings of "unfinished" on this page look like one thing. */
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.06), transparent);
+  animation: rise-in-sm var(--dur-slow) var(--ease-out) both;
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.resume-card:hover {
+  border-color: rgba(251, 191, 36, 0.5);
+  transform: translateY(-2px);
+}
+
+.resume-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.resume-card__letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.resume-card__names {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.resume-card__names strong {
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.resume-card__case {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-card__progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.resume-card__bar {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.resume-card__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--warn);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.resume-card__step {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.resume-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: auto;
+}
+
+.resume-card__when {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.resume-more {
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding-block: var(--space-6) var(--space-5);
+  }
+
+  .hero__title {
+    font-size: var(--text-2xl);
+  }
+
+  .hero__lede {
+    font-size: var(--text-sm);
+  }
+}

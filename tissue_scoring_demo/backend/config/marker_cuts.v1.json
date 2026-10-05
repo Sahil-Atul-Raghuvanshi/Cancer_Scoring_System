@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "generated_at": "2026-09-15",
+  "scale": "DAB optical density, Beer-Lambert, on step 4's per-slide white point. Absolute, never per-slide percentiles.",
+  "status": "provisional",
+  "anchored_on": [],
+  "provenance": "NOT calibrated against reader scores. 6Slide Reports2.xlsx is not on disk, so the 120 reader (percent, intensity) pairs that ought to fit these numbers were unavailable. These defaults come from the DAB optical-density scale itself: the noise floor of clean glass on this scanner sits near 0.05 OD, faint-but-real DAB near 0.15, unambiguous brown near 0.35, and saturated 3+ brown above 0.70. Every number that leaves this file is labelled provisional for that reason. Replace by running tools/calibrate_marker_cuts.py once the sheet exists.",
+  "markers": {
+    "A": {
+      "name": "CD44",
+      "compartment": "membrane",
+      "od": [0.15, 0.35, 0.70],
+      "completeness_min": 0.35,
+      "notes": "CD44 is the marker that separates cases - 5% to 85% across six cases in the reader data - so it is the one whose cuts matter most and the one to calibrate first."
+    },
+    "F": {
+      "name": "ABCC4",
+      "compartment": "membrane",
+      "od": [0.15, 0.35, 0.70],
+      "completeness_min": 0.35,
+      "notes": "Reader percentages cluster 35-65%. A cut that sends this marker outside that band is a cut to re-examine, not a finding."
+    },
+    "R": {
+      "name": "ABCC11",
+      "compartment": "membrane",
+      "od": [0.15, 0.35, 0.70],
+      "completeness_min": 0.35,
+      "notes": "Reader percentages cluster 35-65%, same as ABCC4. The two are easy to swap when joining to the reader sheet - its columns run A, W, U, R, F, not panel order."
+    },
+    "U": {
+      "name": "N-cadherin",
+      "compartment": "cytoplasm",
+      "od": [0.12, 0.30, 0.60],
+      "stained_fraction_min": 0.25,
+      "notes": "Cytoplasmic staining is spread over a wider, thinner band than a membrane ring, so the same amount of stain reads as a lower mean OD. The cuts are correspondingly lower - this is the reason one shared cut table cannot serve all five markers. Every reader recorded exactly 80% on every case, so agreement here demonstrates nothing until Q6 is answered."
+    },
+    "W": {
+      "name": "Pan-cadherin",
+      "compartment": "cytoplasm",
+      "od": [0.12, 0.30, 0.60],
+      "stained_fraction_min": 0.25,
+      "notes": "As N-cadherin. 22 of 24 reader reads were 80%."
+    }
+  },
+  "bands": {
+    "scale": "0-2",
+    "permitted": [0.0, 0.5, 1.0, 1.5, 1.75, 2.0],
+    "labels": {
+      "0.0": "Negative",
+      "0.5": "Weak",
+      "1.0": "Weak",
+      "1.5": "Moderate",
+      "1.75": "Strong",
+      "2.0": "Strong"
+    },
+    "od_to_band": [
+      [0.15, 0.0],
+      [0.25, 0.5],
+      [0.40, 1.0],
+      [0.60, 1.5],
+      [0.80, 1.75],
+      [null, 2.0]
+    ],
+    "conflict": "OncoStem's deck describes intensity on a 1-3 scale on pages 6-7 and on these 0-2 bands on page 9. All 120 readings in the Excel sit on 0-2, so 0-2 is what is implemented; the 1-3 scale is left as open question Q2 rather than reconciled by guesswork."
+  },
+  "partial_membrane_rule": "count",
+  "partial_membrane_rule_note": "Q1, the open question with the largest effect on our numbers. 'count' admits any cell over both cuts; 'half' gives a cell between half the completeness cut and the cut itself a weight of 0.5; 'exclude' requires the completeness cut outright. Decided separately for the membrane markers and for the cytoplasmic ones - whatever is chosen for CD44, ABCC4 and ABCC11 does not transfer to the two cadherins."
+}

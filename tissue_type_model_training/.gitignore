@@ -1,0 +1,15 @@
+# This folder holds code only. The tile and feature stores it exports live under
+# the workspace's one data tree, at data/tissue_type_model_training/, and the
+# sources it reads at data/original/ - the root .gitignore covers all of it.
+
+# Figures, logs, sweep results and the H&E campaign's state and tracker. All
+# reproducible from the scripts, and a campaign's state file holds a process id.
+reports/
+
+# Notebook outputs. The narrative belongs in the .ipynb; a 40 MB base64 PNG of a
+# confusion matrix does not belong in a diff.
+**/.ipynb_checkpoints/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/

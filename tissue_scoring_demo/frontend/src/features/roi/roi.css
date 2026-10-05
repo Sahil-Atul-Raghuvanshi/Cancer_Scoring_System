@@ -1,0 +1,433 @@
+/* ============================================================================
+   Step 9 — the ROI mask: the scoring region, and the per-class borders.
+
+   The two products are visually separated on purpose. The borders and the top-3
+   crops are what this screen leads with — they are the new, directly readable
+   answer to "where is the disease" — while the scoring region that gates every
+   later step's denominator sits in a `<details>` at the end, exactly as
+   thoroughly documented as before but no longer competing for the first look.
+   ========================================================================== */
+
+.roi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  text-align: left;
+}
+
+/* --- 1. the headline -------------------------------------------------------- */
+
+.roi-headline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.roi-headline__lead {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--text-base);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.roi-headline__figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-4);
+}
+
+.roi-headline__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-left: 2px solid var(--border-default);
+}
+
+.roi-headline__figure--hero {
+  border-left-color: var(--accent);
+}
+
+.roi-headline__value {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.roi-headline__figure--hero .roi-headline__value {
+  color: var(--accent);
+}
+
+.roi-headline__caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.roi-headline__sub {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+/* --- 2. the borders map ------------------------------------------------------ */
+
+.roi-map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.roi-map__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.roi-map__label {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.roi-map__frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+}
+
+.roi-map__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.roi-map__caption {
+  max-width: 78ch;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+
+/* Positioned in percent of the frame, which lines up with the image regardless of its
+   rendered size because both are the same aspect ratio as the slide itself — see
+   `RoiView.tsx`'s `ringBounds` and `RoiReport.slideWidth`/`slideHeight`. */
+.roi-map__hitboxes {
+  position: absolute;
+  inset: 0;
+}
+
+/* Invisible at rest, on purpose: a box per region is the only shape a button can
+   have, and drawing all of them covers the borders this panel exists to show. The
+   class colour arrives from `--hit-colour`, set per button in `RoiView.tsx`, and only
+   the three states below ever read it. */
+.roi-map__hit {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.roi-map__hit:hover,
+.roi-map__hit:focus-visible {
+  outline: none;
+  border-color: var(--hit-colour);
+  background: rgb(255 255 255 / 0.08);
+}
+
+.roi-map__hit--selected,
+.roi-map__hit--selected:hover {
+  border-color: var(--hit-colour);
+  background: rgb(255 255 255 / 0.12);
+}
+
+.roi-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- 2b. the selected region, enlarged ----------------------------------------- */
+
+.roi-selected {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.roi-selected__frame {
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+}
+
+.roi-selected__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.roi-selected__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.roi-selected__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.roi-selected__hint {
+  flex: 1;
+  min-width: 220px;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+
+.roi-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.roi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.roi-chip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* --- 3. the top-3 crops ------------------------------------------------------ */
+
+.roi-top {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-5);
+}
+
+.roi-top__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.roi-top__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.roi-top__empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.roi-top__gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.roi-top__card {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.roi-top__frame {
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.roi-top__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.roi-top__caption {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* --- 4. the export ------------------------------------------------------------ */
+
+.roi-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+}
+
+.roi-export__text {
+  flex: 1;
+  min-width: 220px;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.roi-export__button {
+  text-decoration: none;
+  flex: none;
+}
+
+/* --- notes --------------------------------------------------------------------- */
+
+.roi-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* --- 5. the scoring-region disclosure ------------------------------------------ */
+
+.roi-detail {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+}
+
+.roi-detail > summary {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.roi-detail[open] > summary {
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+
+.roi-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.roi-detail__intro,
+.roi-detail__foot {
+  margin: 0;
+  max-width: 82ch;
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-tertiary);
+}
+
+.roi-detail__panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.roi-detail__panel {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.roi-detail__panel img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.roi-detail__panel figcaption {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.roi-detail__ledger {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.roi-detail__ledger dt {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+.roi-detail__ledger dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.roi-citation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}

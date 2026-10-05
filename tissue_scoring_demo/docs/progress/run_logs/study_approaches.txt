@@ -1,0 +1,43 @@
+CAN_00270: 3 marker(s) with reader data
+
+==============================================================================
+PERCENT POSITIVE  (tolerance = each marker's own reader spread)
+==============================================================================
+variant                                MAE    bias    rho  inside
+P0 area-weighted (shipped)            11.7   +11.7   0.87   1/3
+P3 pooled over all cells              13.3   +13.3   0.87   0/3
+P3 plain mean of regions              11.7    +8.3   0.87   1/3
+P3 cell-count weighted                13.3   +13.3   0.87   0/3
+P1 dominant region only               11.7   +11.7   0.87   1/3
+
+  per marker, shipped cuts:
+        R       U       W     (readers)
+       65     100      85   P0 area-weighted (shipped)
+       70     100      85   P3 pooled over all cells
+       65     100      75   P3 plain mean of regions
+       70     100      85   P3 cell-count weighted
+       65     100      85   P1 dominant region only
+     55.0    80.0    80.0   READERS
+
+==============================================================================
+INTENSITY  (tolerance = each marker's own reader spread)
+==============================================================================
+variant                                MAE    bias    rho  inside
+
+  internal control (SOP 5.7) measured:
+    R: tumour 0.3005 OD / control 0.2677 OD = 1.122
+    U: tumour 0.4399 OD / control 0.4990 OD = 0.882
+    W: tumour 0.3137 OD / control 0.3050 OD = 1.029
+
+I0/I3 mean, shipped bands            0.292  -0.292   0.87   2/3
+I0/I3 median, shipped bands          0.292  -0.292   0.87   2/3
+I0/I3 p75, shipped bands             0.292  -0.292   0.87   2/3
+I0/I3 p90, shipped bands             0.167  +0.125   0.87   3/3
+I1 mean, bands rescaled to range     0.917  -0.792   0.87   1/3
+I2 tumour/control, rescaled          0.917  -0.292  -1.00   1/3
+
+  rho over five markers: +1.00 is a perfect ordering (p about 0.008),
+  and anything under about +0.60 is indistinguishable from chance here.
+
+  The raw densities this pipeline produces span 0.300 to 0.440 OD.
+  The shipped band table needs 0.80 OD for 1.75 and 0.80 for 2.0, so bands [1.5, 1.75, 2.0] are effectively unreachable.

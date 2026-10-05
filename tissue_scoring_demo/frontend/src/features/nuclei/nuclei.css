@@ -1,0 +1,310 @@
+/* ============================================================================
+   Step 11 - nuclei.
+
+   Same shape as the other step screens: plain language and pictures on the
+   surface, numbers in the `<details>` at the end. The one thing this screen
+   does that no other does is put a zoomable frame in the middle of the page,
+   so most of what follows is making that frame behave like an instrument
+   rather than like an image in a document.
+   ========================================================================== */
+
+.nuc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5, 1.25rem);
+}
+
+.nuc-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4, 1rem);
+  flex-wrap: wrap;
+}
+
+.nuc-panel__head h3 {
+  margin: 0 0 0.35rem;
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+}
+
+.nuc-panel__head p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.nuc-panel__marker {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* --- the empty / offer state --------------------------------------------- */
+
+.nuc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4, 1rem);
+  max-width: 68ch;
+}
+
+.nuc-empty h3 {
+  margin: 0;
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+}
+
+.nuc-empty p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+
+.nuc-empty__blocked {
+  padding: 0.75rem 0.9rem;
+  border-left: 3px solid var(--warn);
+  background: var(--warn-soft);
+  border-radius: 0 6px 6px 0;
+}
+
+.nuc-empty__error {
+  padding: 0.75rem 0.9rem;
+  border-left: 3px solid var(--danger);
+  background: var(--danger-soft);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-primary);
+}
+
+.nuc-empty__path {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  word-break: break-all;
+}
+
+.nuc-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.nuc-progress__bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.nuc-progress__bar > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.nuc-progress span {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* --- the cross-slide density check ---------------------------------------- */
+
+.nuc-check {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nuc-check--warn {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: var(--warn-soft);
+}
+
+.nuc-check p {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.nuc-check strong {
+  color: var(--text-primary);
+}
+
+/* --- the figures under the slide ------------------------------------------ */
+
+.nuc-region__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.nuc-stat {
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-inset);
+}
+
+.nuc-stat__label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.nuc-stat__value {
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+}
+
+.nuc-stat__hint {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  margin-top: 0.15rem;
+  line-height: 1.4;
+}
+
+/* --- flying to a region --------------------------------------------------- */
+
+.nuc-jump {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.nuc-jump__label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-right: 0.25rem;
+}
+
+.nuc-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 1.9rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.nuc-chip:hover {
+  background: var(--bg-hover);
+}
+
+.nuc-chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.nuc-chip__sub {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+/* --- the two comparisons -------------------------------------------------- */
+
+.nuc-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4, 1rem);
+}
+
+.nuc-compare section {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.nuc-compare h4 {
+  margin: 0 0 0.4rem;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.nuc-compare p {
+  margin: 0 0 0.6rem;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.nuc-compare img {
+  display: block;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+}
+
+.nuc-compare__figures {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* --- notes and the disclosure --------------------------------------------- */
+
+.nuc-note {
+  margin: 0;
+  padding-left: 0.85rem;
+  border-left: 2px solid var(--border-default);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 78ch;
+}
+
+.nuc-detail {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.75rem;
+}
+
+.nuc-detail > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.nuc-detail > summary:hover {
+  color: var(--text-secondary);
+}
+
+.nuc-detail h4 {
+  margin: 1rem 0 0.35rem;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.nuc-detail ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.nuc-detail li,
+.nuc-detail p {
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-muted);
+  max-width: 82ch;
+}
+
+.nuc-detail strong {
+  color: var(--text-secondary);
+}

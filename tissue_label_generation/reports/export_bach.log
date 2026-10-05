@@ -1,0 +1,324 @@
+Photos/InSitu: 100 regions from 100 patients, teaching 1 (non_invasive_epithelium), ~600 forward passes, ~6 min
+[1/100] is001: 13% in-situ  REJECTED
+[2/100] is002: 13% in-situ  REJECTED
+[3/100] is003: 7% in-situ  REJECTED
+[4/100] is004: 37% in-situ  kept
+[5/100] is005: 16% in-situ  REJECTED
+[6/100] is006: 22% in-situ  REJECTED
+[7/100] is007: 29% in-situ  kept
+[8/100] is008: 40% in-situ  kept
+[9/100] is009: 32% in-situ  kept
+[10/100] is010: 32% in-situ  kept
+[11/100] is011: 32% in-situ  REJECTED
+[12/100] is012: 20% in-situ  kept
+[13/100] is013: 43% in-situ  kept
+[14/100] is014: 20% in-situ  REJECTED
+[15/100] is015: 46% in-situ  kept
+[16/100] is016: 14% in-situ  REJECTED
+[17/100] is017: 64% in-situ  kept
+[18/100] is018: 45% in-situ  kept
+[19/100] is019: 30% in-situ  REJECTED
+[20/100] is020: 38% in-situ  kept
+[21/100] is021: 48% in-situ  kept
+[22/100] is022: 22% in-situ  REJECTED
+[23/100] is023: 70% in-situ  kept
+[24/100] is024: 53% in-situ  kept
+[25/100] is025: 84% in-situ  kept
+[26/100] is026: 62% in-situ  kept
+[27/100] is027: 41% in-situ  REJECTED
+[28/100] is028: 31% in-situ  kept
+[29/100] is029: 46% in-situ  kept
+[30/100] is030: 51% in-situ  kept
+[31/100] is031: 75% in-situ  kept
+[32/100] is032: 67% in-situ  kept
+[33/100] is033: 85% in-situ  kept
+[34/100] is034: 10% in-situ  REJECTED
+[35/100] is035: 4% in-situ  REJECTED
+[36/100] is036: 5% in-situ  REJECTED
+[37/100] is037: 27% in-situ  kept
+[38/100] is038: 23% in-situ  kept
+[39/100] is039: 41% in-situ  kept
+[40/100] is040: 25% in-situ  kept
+[41/100] is041: 52% in-situ  kept
+[42/100] is042: 33% in-situ  kept
+[43/100] is043: 14% in-situ  REJECTED
+[44/100] is044: 7% in-situ  REJECTED
+[45/100] is045: 8% in-situ  kept
+[46/100] is046: 18% in-situ  kept
+[47/100] is047: 59% in-situ  kept
+[48/100] is048: 66% in-situ  kept
+[49/100] is049: 62% in-situ  kept
+[50/100] is050: 65% in-situ  kept
+[51/100] is051: 16% in-situ  REJECTED
+[52/100] is052: 54% in-situ  kept
+[53/100] is053: 80% in-situ  kept
+[54/100] is054: 6% in-situ  REJECTED
+[55/100] is055: 5% in-situ  REJECTED
+[56/100] is056: 0% in-situ  REJECTED
+[57/100] is057: 13% in-situ  kept
+[58/100] is058: 0% in-situ  REJECTED
+[59/100] is059: 0% in-situ  REJECTED
+[60/100] is060: 0% in-situ  REJECTED
+[61/100] is061: 3% in-situ  REJECTED
+[62/100] is062: 5% in-situ  REJECTED
+[63/100] is063: 0% in-situ  REJECTED
+[64/100] is064: 20% in-situ  kept
+[65/100] is065: 19% in-situ  kept
+[66/100] is066: 17% in-situ  REJECTED
+[67/100] is067: 0% in-situ  REJECTED
+[68/100] is068: 17% in-situ  REJECTED
+[69/100] is069: 9% in-situ  REJECTED
+[70/100] is070: 40% in-situ  kept
+[71/100] is071: 14% in-situ  kept
+[72/100] is072: 31% in-situ  kept
+[73/100] is073: 0% in-situ  REJECTED
+[74/100] is074: 0% in-situ  REJECTED
+[75/100] is075: 5% in-situ  REJECTED
+[76/100] is076: 16% in-situ  REJECTED
+[77/100] is077: 1% in-situ  REJECTED
+[78/100] is078: 0% in-situ  REJECTED
+[79/100] is079: 12% in-situ  kept
+[80/100] is080: 5% in-situ  REJECTED
+[81/100] is081: 12% in-situ  kept
+[82/100] is082: 14% in-situ  kept
+[83/100] is083: 11% in-situ  REJECTED
+[84/100] is084: 10% in-situ  REJECTED
+[85/100] is085: 3% in-situ  REJECTED
+[86/100] is086: 3% in-situ  REJECTED
+[87/100] is087: 7% in-situ  kept
+[88/100] is088: 14% in-situ  REJECTED
+[89/100] is089: 2% in-situ  REJECTED
+[90/100] is090: 22% in-situ  kept
+[91/100] is091: 17% in-situ  kept
+[92/100] is092: 37% in-situ  kept
+[93/100] is093: 18% in-situ  REJECTED
+[94/100] is094: 18% in-situ  kept
+[95/100] is095: 39% in-situ  kept
+[96/100] is096: 18% in-situ  REJECTED
+[97/100] is097: 4% in-situ  REJECTED
+[98/100] is098: 6% in-situ  REJECTED
+[99/100] is099: 17% in-situ  kept
+[100/100] is100: 31% in-situ  kept
+
+================================================================
+  kept 53 regions from 53 patients
+  rejected 47  |  reused from cache 0
+  -> C:\Users\Coditas\Desktop\Healthcare_Projects\Cancer_Scoring_System\bcss_bracs_hchannel_resnet18\data\bach_insitu
+  38.8 min
+================================================================
+Photos/Invasive: 100 regions from 100 patients, teaching 2 (invasive_epithelium), ~600 forward passes, ~6 min
+[1/100] iv001: 35% invasive  kept
+[2/100] iv002: 69% invasive  kept
+[3/100] iv003: 92% invasive  kept
+[4/100] iv004: 79% invasive  kept
+[5/100] iv005: 92% invasive  kept
+[6/100] iv006: 39% invasive  kept
+[7/100] iv007: 68% invasive  kept
+[8/100] iv008: 71% invasive  kept
+[9/100] iv009: 68% invasive  kept
+[10/100] iv010: 99% invasive  kept
+[11/100] iv011: 76% invasive  kept
+[12/100] iv012: 84% invasive  kept
+[13/100] iv013: 76% invasive  kept
+[14/100] iv014: 94% invasive  kept
+[15/100] iv015: 97% invasive  kept
+[16/100] iv016: 79% invasive  kept
+[17/100] iv017: 95% invasive  kept
+[18/100] iv018: 52% invasive  kept
+[19/100] iv019: 59% invasive  kept
+[20/100] iv020: 28% invasive  kept
+[21/100] iv021: 28% invasive  kept
+[22/100] iv022: 59% invasive  kept
+[23/100] iv023: 32% invasive  kept
+[24/100] iv024: 30% invasive  kept
+[25/100] iv025: 92% invasive  kept
+[26/100] iv026: 45% invasive  kept
+[27/100] iv027: 90% invasive  kept
+[28/100] iv028: 85% invasive  kept
+[29/100] iv029: 15% invasive  kept
+[30/100] iv030: 19% invasive  kept
+[31/100] iv031: 82% invasive  kept
+[32/100] iv032: 84% invasive  kept
+[33/100] iv033: 75% invasive  kept
+[34/100] iv034: 80% invasive  kept
+[35/100] iv035: 88% invasive  kept
+[36/100] iv036: 22% invasive  kept
+[37/100] iv037: 22% invasive  kept
+[38/100] iv038: 98% invasive  kept
+[39/100] iv039: 81% invasive  kept
+[40/100] iv040: 67% invasive  kept
+[41/100] iv041: 27% invasive  kept
+[42/100] iv042: 45% invasive  kept
+[43/100] iv043: 100% invasive  kept
+[44/100] iv044: 62% invasive  kept
+[45/100] iv045: 78% invasive  kept
+[46/100] iv046: 16% invasive  kept
+[47/100] iv047: 97% invasive  kept
+[48/100] iv048: 27% invasive  kept
+[49/100] iv049: 19% invasive  kept
+[50/100] iv050: 57% invasive  kept
+[51/100] iv051: 44% invasive  kept
+[52/100] iv052: 31% invasive  kept
+[53/100] iv053: 43% invasive  kept
+[54/100] iv054: 75% invasive  kept
+[55/100] iv055: 80% invasive  kept
+[56/100] iv056: 38% invasive  kept
+[57/100] iv057: 27% invasive  kept
+[58/100] iv058: 18% invasive  kept
+[59/100] iv059: 85% invasive  kept
+[60/100] iv060: 61% invasive  kept
+[61/100] iv061: 38% invasive  kept
+[62/100] iv062: 21% invasive  kept
+[63/100] iv063: 35% invasive  kept
+[64/100] iv064: 29% invasive  kept
+[65/100] iv065: 20% invasive  kept
+[66/100] iv066: 3% invasive  REJECTED
+[67/100] iv067: 93% invasive  kept
+[68/100] iv068: 96% invasive  kept
+[69/100] iv069: 54% invasive  kept
+[70/100] iv070: 68% invasive  kept
+[71/100] iv071: 100% invasive  kept
+[72/100] iv072: 38% invasive  kept
+[73/100] iv073: 75% invasive  kept
+[74/100] iv074: 42% invasive  kept
+[75/100] iv075: 74% invasive  kept
+[76/100] iv076: 41% invasive  kept
+[77/100] iv077: 48% invasive  kept
+[78/100] iv078: 100% invasive  kept
+[79/100] iv079: 76% invasive  kept
+[80/100] iv080: 85% invasive  kept
+[81/100] iv081: 60% invasive  kept
+[82/100] iv082: 13% invasive  kept
+[83/100] iv083: 99% invasive  kept
+[84/100] iv084: 58% invasive  kept
+[85/100] iv085: 70% invasive  kept
+[86/100] iv086: 68% invasive  kept
+[87/100] iv087: 67% invasive  kept
+[88/100] iv088: 76% invasive  kept
+[89/100] iv089: 43% invasive  kept
+[90/100] iv090: 76% invasive  kept
+[91/100] iv091: 98% invasive  kept
+[92/100] iv092: 46% invasive  kept
+[93/100] iv093: 53% invasive  kept
+[94/100] iv094: 45% invasive  kept
+[95/100] iv095: 71% invasive  kept
+[96/100] iv096: 55% invasive  kept
+[97/100] iv097: 53% invasive  kept
+[98/100] iv098: 77% invasive  kept
+[99/100] iv099: 43% invasive  kept
+[100/100] iv100: 32% invasive  kept
+
+================================================================
+  kept 99 regions from 99 patients
+  rejected 1  |  reused from cache 0
+  -> C:\Users\Coditas\Desktop\Healthcare_Projects\Cancer_Scoring_System\bcss_bracs_hchannel_resnet18\data\bach_invasive
+  42.9 min
+================================================================
+Photos/Normal: 100 regions from 100 patients, teaching 0/1 (non_epithelium, non_invasive_epithelium), ~600 forward passes, ~6 min
+[1/100] n001: 11% normal duct  kept
+[2/100] n002: 10% normal duct  kept
+[3/100] n003: 29% normal duct  kept
+[4/100] n004: 3% normal duct  REJECTED
+[5/100] n005: 9% normal duct  kept
+[6/100] n006: 1% normal duct  REJECTED
+[7/100] n007: 0% normal duct  REJECTED
+[8/100] n008: 14% normal duct  kept
+[9/100] n009: 12% normal duct  kept
+[10/100] n010: 6% normal duct  REJECTED
+[11/100] n011: 5% normal duct  kept
+[12/100] n012: 3% normal duct  kept
+[13/100] n013: 6% normal duct  kept
+[14/100] n014: 43% normal duct  kept
+[15/100] n015: 1% normal duct  REJECTED
+[16/100] n016: 0% normal duct  REJECTED
+[17/100] n017: 10% normal duct  kept
+[18/100] n018: 3% normal duct  REJECTED
+[19/100] n019: 13% normal duct  kept
+[20/100] n020: 11% normal duct  kept
+[21/100] n021: 3% normal duct  REJECTED
+[22/100] n022: 10% normal duct  kept
+[23/100] n023: 0% normal duct  kept
+[24/100] n024: 0% normal duct  REJECTED
+[25/100] n025: 1% normal duct  kept
+[26/100] n026: 0% normal duct  kept
+[27/100] n027: 0% normal duct  kept
+[28/100] n028: 0% normal duct  REJECTED
+[29/100] n029: 0% normal duct  REJECTED
+[30/100] n030: 0% normal duct  kept
+[31/100] n031: 13% normal duct  kept
+[32/100] n032: 6% normal duct  kept
+[33/100] n033: 10% normal duct  kept
+[34/100] n034: 0% normal duct  REJECTED
+[35/100] n035: 15% normal duct  kept
+[36/100] n036: 9% normal duct  kept
+[37/100] n037: 9% normal duct  kept
+[38/100] n038: 16% normal duct  kept
+[39/100] n039: 9% normal duct  kept
+[40/100] n040: 17% normal duct  kept
+[41/100] n041: 33% normal duct  kept
+[42/100] n042: 26% normal duct  kept
+[43/100] n043: 35% normal duct  kept
+[44/100] n044: 34% normal duct  kept
+[45/100] n045: 0% normal duct  kept
+[46/100] n046: 25% normal duct  kept
+[47/100] n047: 30% normal duct  kept
+[48/100] n048: 0% normal duct  kept
+[49/100] n049: 0% normal duct  REJECTED
+[50/100] n050: 20% normal duct  kept
+[51/100] n051: 21% normal duct  kept
+[52/100] n052: 24% normal duct  kept
+[53/100] n053: 31% normal duct  kept
+[54/100] n054: 0% normal duct  kept
+[55/100] n055: 0% normal duct  REJECTED
+[56/100] n056: 23% normal duct  kept
+[57/100] n057: 8% normal duct  REJECTED
+[58/100] n058: 37% normal duct  kept
+[59/100] n059: 20% normal duct  kept
+[60/100] n060: 11% normal duct  REJECTED
+[61/100] n061: 26% normal duct  kept
+[62/100] n062: 35% normal duct  kept
+[63/100] n063: 26% normal duct  kept
+[64/100] n064: 42% normal duct  kept
+[65/100] n065: 24% normal duct  kept
+[66/100] n066: 26% normal duct  kept
+[67/100] n067: 30% normal duct  kept
+[68/100] n068: 22% normal duct  kept
+[69/100] n069: 28% normal duct  kept
+[70/100] n070: 52% normal duct  kept
+[71/100] n071: 26% normal duct  kept
+[72/100] n072: 3% normal duct  REJECTED
+[73/100] n073: 30% normal duct  kept
+[74/100] n074: 7% normal duct  REJECTED
+[75/100] n075: 57% normal duct  kept
+[76/100] n076: 45% normal duct  kept
+[77/100] n077: 25% normal duct  REJECTED
+[78/100] n078: 8% normal duct  REJECTED
+[79/100] n079: 2% normal duct  REJECTED
+[80/100] n080: 36% normal duct  kept
+[81/100] n081: 17% normal duct  kept
+[82/100] n082: 7% normal duct  REJECTED
+[83/100] n083: 20% normal duct  kept
+[84/100] n084: 28% normal duct  kept
+[85/100] n085: 7% normal duct  REJECTED
+[86/100] n086: 20% normal duct  kept
+[87/100] n087: 18% normal duct  kept
+[88/100] n088: 34% normal duct  kept
+[89/100] n089: 6% normal duct  REJECTED
+[90/100] n090: 17% normal duct  kept
+[91/100] n091: 24% normal duct  kept
+[92/100] n092: 31% normal duct  kept
+[93/100] n093: 27% normal duct  kept
+[94/100] n094: 32% normal duct  kept
+[95/100] n095: 0% normal duct  REJECTED
+[96/100] n096: 14% normal duct  kept
+[97/100] n097: 22% normal duct  kept
+[98/100] n098: 31% normal duct  kept
+[99/100] n099: 0% normal duct  REJECTED
+[100/100] n100: 11% normal duct  kept
+
+================================================================
+  kept 74 regions from 74 patients
+  rejected 26  |  reused from cache 0
+  -> C:\Users\Coditas\Desktop\Healthcare_Projects\Cancer_Scoring_System\bcss_bracs_hchannel_resnet18\data\bach_normal
+  46.2 min
+================================================================
