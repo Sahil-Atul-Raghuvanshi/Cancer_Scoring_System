@@ -16,6 +16,7 @@ read, which is the part that would make it ten.
     basis.json      the mpp, the shape, and which QC run this was built against
     saturation.png  the channel the decision is made on
     considered.png  pixels step 2 left in play, when step 2 has run
+    empty.png       scanner fill and outside glass, never tissue at any cut
     display.png     the thumbnail, already fitted for the browser
 
 The first two are written unresampled. They are re-read on every threshold
@@ -53,8 +54,10 @@ from app.pipeline.step02_quality_control import classes as qc_classes
 from app.pipeline.step03_tissue_mask import mask as tissue_mask
 from app.pipeline.step03_tissue_mask import overlay
 from app.pipeline.step03_tissue_mask.mask import TissueMaskError
+from app.pipeline.step04_white_calibration.calibration import detect_fills
 from app.schemas.tissue import (
     TissueComponents,
+    TissueEmpty,
     TissueHistogram,
     TissueParams,
     TissueReport,
@@ -88,6 +91,10 @@ PANELS: dict[str, bool] = {
 #: and an out-of-focus region has no business setting a colour threshold.
 _ARTEFACT_IDS: tuple[int, ...] = tuple(item.id for item in qc_classes.ARTEFACT_CLASSES)
 
+#: Bumped whenever what the basis holds changes, so a cache written by older
+#: code is rebuilt rather than read with a field missing. 2 added `empty.png`.
+_BASIS_VERSION = 2
+
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
@@ -104,6 +111,8 @@ class Basis:
 
     saturation: np.ndarray
     considered: np.ndarray
+    #: Scanner fill or outside glass - out of the mask at every threshold.
+    empty: np.ndarray
     mpp: float
     target_mpp: float
     capped: bool
@@ -113,6 +122,12 @@ class Basis:
     slide_width: int
     slide_height: int
     base_mpp: float
+    #: The exact colours `detect_fills` found, most prevalent first.
+    fill_colours: list[tuple[int, int, int]]
+    #: Each map's own area, before they are combined. They overlap: GrandQC
+    #: calls a fill background too, and the overlap is the agreement.
+    fill_pixels: int
+    qc_glass_pixels: int
 
 
 @dataclass(frozen=True)
@@ -233,6 +248,7 @@ class TissueService:
                 fresh = (
                     abs(float(meta["target_mpp"]) - target_mpp) < 1e-6
                     and meta.get("qc_generated_at") == qc_generated_at
+                    and meta.get("basis_version") == _BASIS_VERSION
                 )
                 if fresh:
                     return self._load_basis(upload_id, meta)
@@ -266,9 +282,14 @@ class TissueService:
         else:
             considered = np.ones(saturation.shape, dtype=bool)
 
+        empty = np.asarray(Image.open(self._path(upload_id, "empty.png")).convert("L")) > 0
+        if empty.shape != expected:
+            raise ValueError("cached empty-area map does not match the mask shape")
+
         return Basis(
             saturation=saturation,
             considered=considered,
+            empty=empty,
             mpp=float(meta["mask_mpp"]),
             target_mpp=float(meta["target_mpp"]),
             capped=bool(meta["capped"]),
@@ -278,6 +299,11 @@ class TissueService:
             slide_width=int(meta["slide_width"]),
             slide_height=int(meta["slide_height"]),
             base_mpp=float(meta["base_mpp"]),
+            fill_colours=[
+                (int(r), int(g), int(b)) for r, g, b in meta["fill_colours"]
+            ],
+            fill_pixels=int(meta["fill_pixels"]),
+            qc_glass_pixels=int(meta["qc_glass_pixels"]),
         )
 
     def _compute_basis(
@@ -316,12 +342,44 @@ class TissueService:
         else:
             considered = np.ones(shape, dtype=bool)
 
+        # Two independent reasons a pixel is not tissue, either sufficient. The
+        # fill test needs nothing from step 2, so it holds on a slide QC never
+        # saw; GrandQC's glass needs the real model, because the fallback's
+        # "background" is a saturation threshold - this step's own rule again.
+        # Step 4's fill test, not a second one: two definitions of "scanner
+        # fill" are two places that can disagree about the same pixels.
+        fills = detect_fills(
+            thumbnail,
+            np.ones(shape, dtype=bool),
+            min_share=settings.calibration_fill_min_share,
+            max_shoulder=settings.calibration_fill_max_shoulder,
+        )
+        fill_colours = [fill.rgb for fill in fills]
+        fill = tissue_mask.scanner_fill(
+            thumbnail,
+            fill_colours,
+            mpp=achieved,
+            min_area_mm2=settings.tissue_empty_min_mm2,
+        )
+        if qc is not None and qc[2] == "grandqc":
+            qc_glass = tissue_mask.outside_glass(
+                qc[0],
+                shape=shape,
+                mpp=achieved,
+                margin_um=settings.tissue_qc_glass_margin_um,
+                min_area_mm2=settings.tissue_empty_min_mm2,
+            )
+        else:
+            qc_glass = np.zeros(shape, dtype=bool)
+        empty = fill | qc_glass
+
         wanted_px = round(max(slide_width, slide_height) * base_mpp / target_mpp)
         capped = wanted_px > settings.tissue_mask_max_px
 
         basis = Basis(
             saturation=saturation,
             considered=considered,
+            empty=empty,
             mpp=achieved,
             target_mpp=target_mpp,
             capped=capped,
@@ -331,6 +389,9 @@ class TissueService:
             slide_width=slide_width,
             slide_height=slide_height,
             base_mpp=base_mpp,
+            fill_colours=fill_colours,
+            fill_pixels=int(np.count_nonzero(fill)),
+            qc_glass_pixels=int(np.count_nonzero(qc_glass)),
         )
 
         # `store_*` for the saturation channel and the footprint: they are
@@ -346,10 +407,12 @@ class TissueService:
             (directory / "considered.png").write_bytes(overlay.store_binary(considered))
         else:
             (directory / "considered.png").unlink(missing_ok=True)
+        (directory / "empty.png").write_bytes(overlay.store_binary(empty))
 
         (directory / "basis.json").write_text(
             json.dumps(
                 {
+                    "basis_version": _BASIS_VERSION,
                     "target_mpp": basis.target_mpp,
                     "mask_mpp": basis.mpp,
                     "capped": basis.capped,
@@ -361,6 +424,9 @@ class TissueService:
                     "slide_width": slide_width,
                     "slide_height": slide_height,
                     "base_mpp": base_mpp,
+                    "fill_colours": [list(colour) for colour in fill_colours],
+                    "fill_pixels": basis.fill_pixels,
+                    "qc_glass_pixels": basis.qc_glass_pixels,
                 },
                 indent=2,
             ),
@@ -398,6 +464,7 @@ class TissueService:
             min_component_mm2=settings.tissue_min_component_mm2,
             fill_hole_max_mm2=settings.tissue_fill_hole_max_mm2,
             spike_share=settings.tissue_spike_share,
+            empty=basis.empty,
         )
 
         self._result_memo.put(key, result)
@@ -438,9 +505,12 @@ class TissueService:
             slide_height=basis.slide_height,
             base_mpp=basis.base_mpp,
             capped=basis.capped,
+            # The basis version is in the key because it changes the pixels: a
+            # step 4 cache keyed without it would keep the mask that still had
+            # the scanner fill in it.
             key=(
                 f"{result.choice.value}@{result.mpp:.4f}"
-                f"/{basis.qc_generated_at or 'ungated'}"
+                f"/{basis.qc_generated_at or 'ungated'}/b{_BASIS_VERSION}"
             ),
         )
 
@@ -623,6 +693,14 @@ class TissueService:
             glass_share=round(1.0 - share, 6),
             holes_filled_pixels=result.holes_filled_pixels,
             holes_filled_area_mm2=area(result.holes_filled_pixels),
+            empty=TissueEmpty(
+                fill_colours=[list(colour) for colour in basis.fill_colours],
+                fill_area_mm2=area(basis.fill_pixels),
+                qc_glass_area_mm2=area(basis.qc_glass_pixels),
+                removed_area_mm2=area(result.empty_removed_pixels),
+                min_area_mm2=settings.tissue_empty_min_mm2,
+                qc_glass_margin_um=settings.tissue_qc_glass_margin_um,
+            ),
             notes=self._notes(
                 basis=basis,
                 params=params,
@@ -630,6 +708,7 @@ class TissueService:
                 components=components,
                 share=share,
                 holes_filled_area_mm2=area(result.holes_filled_pixels),
+                empty_removed_area_mm2=area(result.empty_removed_pixels),
             ),
             citation=CITATION,
         )
@@ -643,6 +722,7 @@ class TissueService:
         components: TissueComponents,
         share: float,
         holes_filled_area_mm2: float,
+        empty_removed_area_mm2: float,
     ) -> list[str]:
         """The caveats that belong beside the numbers, built from the numbers."""
         notes = [
@@ -667,6 +747,15 @@ class TissueService:
                 "says must stay. Fat at the cut edge of the section is still lost; no "
                 "morphology recovers it, which is precisely why fat is a learned class "
                 "later and not a threshold here."
+            )
+
+        if empty_removed_area_mm2 > 0:
+            notes.append(
+                f"{empty_removed_area_mm2:.1f} mm2 had enough colour to pass the threshold "
+                "and was removed anyway, because it is scanner background: a flat fill "
+                "the scanner painted where it never imaged, or glass step 2's tissue "
+                "model found around the section. Left in, a fill is the largest "
+                "'tissue' region on the slide and step 8 confidently calls it a class."
             )
 
         if basis.qc_gated:

@@ -1873,7 +1873,15 @@ def test_step_8_runs_at_step_7s_overlap_rather_than_its_own_setting(monkeypatch)
             # What the checkpoint says it is shown. Recorded on the run because the
             # branch, not the field of view alone, now decides which head serves.
             channel="haematoxylin",
+            # No published reference: the run is gated by the flat test alone.
+            familiarity=None,
         ),
+    )
+    # Step 3's mask by identity is part of the run key now, and this test has no slide.
+    monkeypatch.setattr(
+        service_module.tissue_service,
+        "footprint",
+        lambda upload_id, **_: SimpleNamespace(key="unit-mask"),
     )
     monkeypatch.setattr(
         service_module.tiling_service,
@@ -2138,6 +2146,11 @@ def test_step_8_refuses_when_step_7s_field_of_view_has_no_head(monkeypatch):
         lambda: SimpleNamespace(torch_installed=True, reason="", device="cpu"),
     )
     monkeypatch.setattr(
+        service_module.tissue_service,
+        "footprint",
+        lambda upload_id, **_: SimpleNamespace(key="unit-mask"),
+    )
+    monkeypatch.setattr(
         service_module.tiling_service,
         "report",
         lambda upload_id, **_: SimpleNamespace(
@@ -2152,3 +2165,203 @@ def test_step_8_refuses_when_step_7s_field_of_view_has_no_head(monkeypatch):
 
     with pytest.raises(TissueTypeError, match="no checkpoint fitted at 448 um"):
         tissue_type_service.resolve_params("unit")
+
+
+# --- the refusal gate (P-05) -------------------------------------------------
+
+from app.pipeline.step08_tissue_type_segmentation import familiarity  # noqa: E402
+
+
+def test_a_constant_window_is_flat_and_an_imaged_one_is_not():
+    """The flat test's whole premise: nothing a scanner imaged is constant."""
+    rng = np.random.default_rng(0)
+    assert familiarity.flat_share(np.full((64, 64), 0.3, np.float32)) == 1.0
+    assert familiarity.flat_share(np.full((64, 64, 3), (181, 180, 186), np.uint8)) == 1.0
+    noisy = rng.normal(0.3, 0.02, (64, 64)).astype(np.float32)
+    assert familiarity.flat_share(noisy) < 0.01
+    # One channel differing is enough to be imaged - a fill is constant in all three.
+    rgb = np.full((64, 64, 3), 200, np.uint8)
+    rgb[..., 2] = rng.integers(0, 255, (64, 64))
+    assert familiarity.flat_share(rgb) < 0.05
+
+
+class _FeatureNet:
+    """A net with a `head`, so `model.penultimate` finds the vector the gate reads."""
+
+    def __init__(self) -> None:
+        import torch
+
+        self.head = torch.nn.Linear(2, 3)
+        with torch.no_grad():
+            self.head.weight.copy_(torch.tensor([[-1.0, 0.0], [0.0, 0.0], [1.0, 0.0]]))
+            self.head.bias.zero_()
+
+    def __call__(self, batch):
+        import torch
+
+        # Two features: the window's mean, and its spread.
+        mean = batch.mean(dim=(1, 2, 3))
+        spread = batch.std(dim=(1, 2, 3))
+        return self.head(torch.stack([mean, spread], dim=1))
+
+
+def _reference(centre: float = 0.0) -> familiarity.Reference:
+    rng = np.random.default_rng(1)
+    features = rng.normal(centre, 0.05, (400, 2)).astype(np.float32)
+    labels = np.repeat(np.arange(2), 200)
+    held_out = np.zeros(400, bool)
+    held_out[::5] = True
+    reference, _ = familiarity.fit(
+        features, labels, held_out, quantile=1.0, fingerprint="unit"
+    )
+    return reference
+
+
+def _gate_run(grid, read, *, reference=None) -> ClassMap:
+    return inference.classify(
+        grid,
+        net=_FeatureNet(),
+        read_window=read,
+        standardise=False,
+        block_windows=8,
+        batch_size=16,
+        gate=familiarity.Gate(reference=reference, max_flat_share=0.75),
+    )
+
+
+def _noise(x: int, y: int, span: int, size: int) -> np.ndarray:
+    rng = np.random.default_rng(x * 7919 + y)
+    return rng.normal(0.3, 0.05, (size, size)).astype(np.float32)
+
+
+def test_a_flat_window_is_refused_and_leaves_the_class_map_entirely():
+    """P-05: a scanner-fill window gets no class, no probability, and no place in `inside`.
+
+    `inside` is the part that is easy to miss and the part step 9 depends on: it closes
+    holes within `inside`, so a window that kept its place there could be annexed.
+    """
+    grid = _grid(_mask(fill=0.6))
+    fill_left = grid.slide_width // 2
+
+    def read(x: int, y: int, span: int, size: int) -> np.ndarray:
+        pixels = _noise(x, y, span, size)
+        # The right half of the slide is one constant value - the fill.
+        scale = span / size
+        columns = x + (np.arange(size) + 0.5) * scale >= fill_left
+        pixels[:, columns] = 0.42
+        return pixels
+
+    class_map = _gate_run(grid, read)
+    flat = class_map.refused == familiarity.FLAT
+
+    assert flat.any() and (class_map.refused == familiarity.ANSWERED).any()
+    assert (class_map.labels[flat] == OUTSIDE).all()
+    assert class_map.probabilities[flat].sum() == 0.0
+    assert not class_map.grid.inside[flat].any()
+    assert class_map.classified == int(class_map.grid.inside.sum())
+    assert class_map.classified + class_map.refused_count(familiarity.FLAT) == grid.windows
+    # Drawn as "cannot be determined", never as a class.
+    assert (class_map.display_labels[flat] == tissue_classes.UNCERTAIN).all()
+
+
+def test_a_flat_window_never_becomes_invasive_whatever_the_model_says():
+    """The gate is upstream of the decision, so no head output can reach the score."""
+    grid = _grid(_mask(fill=0.6))
+
+    def read(x: int, y: int, span: int, size: int) -> np.ndarray:
+        # A bright constant: `_FeatureNet` calls a high mean invasive.
+        return np.full((size, size), 5.0, dtype=np.float32)
+
+    ungated = inference.classify(
+        grid, net=_FeatureNet(), read_window=read, standardise=False, batch_size=16
+    )
+    assert ungated.counts[SCORED] == grid.windows, "the fill would be scored invasive"
+
+    gated = _gate_run(grid, read)
+    assert gated.counts[SCORED] == 0
+    assert gated.scored_mm2 == 0.0
+    assert not gated.grid.inside.any()
+
+
+def test_an_unfamiliar_window_is_refused_and_a_familiar_one_is_answered():
+    grid = _grid(_mask(fill=0.6))
+    familiar = _gate_run(grid, _noise, reference=_reference(centre=0.0))
+    # The noise windows have mean ~0.3 and spread ~0.05: far from a reference at 0.
+    assert familiar.refused_count(familiarity.UNFAMILIAR) == grid.windows
+
+    # A reference fitted on what the net actually reads for windows like these: its
+    # input is the transformed density, not the raw pixel values.
+    import torch
+
+    net = _FeatureNet()
+    samples = np.stack([
+        model_input.to_model_input(_noise(x, 0, 64, 224), standardise=False)
+        for x in range(400)
+    ])
+    with torch.no_grad():
+        batch = torch.from_numpy(samples)
+        mean, spread = batch.mean(dim=(1, 2, 3)), batch.std(dim=(1, 2, 3))
+    features = torch.stack([mean, spread], dim=1).numpy()
+    held_out = np.zeros(400, bool)
+    held_out[::4] = True
+    near, _ = familiarity.fit(
+        features, np.zeros(400, int), held_out, quantile=1.0, fingerprint="unit"
+    )
+    near = familiarity.Reference(**{**near.__dict__, "threshold": near.threshold * 4})
+    answered = _gate_run(grid, _noise, reference=near)
+    assert answered.refused_count(familiarity.UNFAMILIAR) == 0
+    assert answered.classified == grid.windows
+    assert np.isfinite(answered.distance[grid.inside]).all()
+
+
+def test_the_gate_leaves_no_hook_on_a_cached_net():
+    """The net is cached across runs; a hook left on it would outlive the pass."""
+    grid = _grid(_mask(fill=0.6))
+    net = _FeatureNet()
+    inference.classify(
+        grid, net=net, read_window=_noise, standardise=False, batch_size=16,
+        gate=familiarity.Gate(reference=_reference(), max_flat_share=0.75),
+    )
+    assert not net.head._forward_pre_hooks
+
+
+def test_a_reference_round_trips_and_refuses_another_version(tmp_path):
+    reference = _reference()
+    path = tmp_path / "head.familiarity.npz"
+    familiarity.save(reference, path)
+    again = familiarity.load(path)
+    assert np.array_equal(again.means, reference.means)
+    assert np.array_equal(again.precisions, reference.precisions)
+    assert again.threshold == reference.threshold
+
+    with np.load(path) as stored:
+        payload = dict(stored)
+    payload["version"] = np.array(familiarity.VERSION + 1)
+    np.savez(path, **payload)
+    with pytest.raises(ValueError, match="version"):
+        familiarity.load(path)
+
+
+def test_the_cut_is_read_off_the_held_out_tiles_not_the_training_ones():
+    rng = np.random.default_rng(2)
+    features = rng.normal(0, 1, (600, 3)).astype(np.float32)
+    held_out = np.zeros(600, bool)
+    held_out[:100] = True
+    features[:100] += 0.5  # the held-out lab sits a little farther out
+    reference, distances = familiarity.fit(
+        features, np.zeros(600, int), held_out, quantile=1.0, fingerprint="unit"
+    )
+    assert reference.threshold == pytest.approx(float(distances.max()))
+    assert reference.held_out == 100 and reference.train == 500
+    assert (reference.distance(features[:100]) <= reference.threshold + 1e-3).all()
+
+
+def test_a_changed_gate_changes_the_run_key():
+    """A pass gated under another rule does not describe what this rule produces."""
+    from app.services.tissue_type_service import tissue_type_service
+
+    base = {"model": "m", "familiarity": familiarity.Gate(None, 0.75).signature}
+    moved = {**base, "familiarity": familiarity.Gate(_reference(), 0.75).signature}
+    assert tissue_type_service._cache_key(base) != tissue_type_service._cache_key(moved)
+    corrected = {**base, "tissue_mask_key": "1@6.89/qc/b2"}
+    assert tissue_type_service._cache_key(base) != tissue_type_service._cache_key(corrected)

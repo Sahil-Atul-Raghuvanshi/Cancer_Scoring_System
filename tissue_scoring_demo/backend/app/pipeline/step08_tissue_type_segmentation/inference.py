@@ -71,6 +71,7 @@ import numpy as np
 from app.pipeline.contract import RunCancelled
 from app.pipeline.step07_tiling.index import TileIndex
 
+from . import familiarity as familiar
 from . import input as model_input
 from .classes import CLASS_NAMES, SCORED
 from .uncertainty import UNCERTAIN, UncertaintyLayer
@@ -478,22 +479,41 @@ class ClassMap:
     #: the score are built from, and a derived flag must not be able to move them.
     uncertainty: UncertaintyLayer | None = None
 
+    #: (rows, cols) int8 refusal code per window - see `familiarity`. `ANSWERED` where
+    #: the model's answer was kept. A refused window is already gone from `labels`,
+    #: `probabilities` and `grid.inside`; this is the record of why. None on a map that
+    #: predates the gate.
+    refused: np.ndarray | None = None
+    #: (rows, cols) float32 familiarity distance, NaN where not measured.
+    distance: np.ndarray | None = None
+    #: The gate as it ran, so the report can state its cut.
+    gate: familiar.Gate | None = None
+
     @property
     def classified(self) -> int:
         return int(sum(self.counts))
 
+    def refused_count(self, reason: int) -> int:
+        if self.refused is None:
+            return 0
+        return int((self.refused == reason).sum())
+
     @property
     def display_labels(self) -> np.ndarray:
-        """`labels`, with the flagged in-situ windows recoloured `UNCERTAIN`.
+        """`labels`, with flagged in-situ windows and refused windows drawn `UNCERTAIN`.
 
         What the map draws and what the class bars are tabulated over. `labels` itself is
         left alone - it is the model's answer, it is what `classmap.npz` stores and what
-        step 9 reads, and the whole safety argument for this layer is that the two arrays
-        differ only on windows Rule 5 had already excluded.
+        step 9 reads. The uncertainty layer only ever recolours windows Rule 5 had
+        already excluded; a refused window was removed from `labels` outright, so
+        neither can move the score through this property.
         """
-        if self.uncertainty is None:
-            return self.labels
-        return np.where(self.uncertainty.unknown, np.int8(UNCERTAIN), self.labels)
+        labels = self.labels
+        if self.uncertainty is not None:
+            labels = np.where(self.uncertainty.unknown, np.int8(UNCERTAIN), labels)
+        if self.refused is not None:
+            labels = np.where(self.refused != familiar.ANSWERED, np.int8(UNCERTAIN), labels)
+        return labels
 
     @property
     def shares(self) -> tuple[float, float, float]:
@@ -649,8 +669,15 @@ def classify(
     progress: Callable[[int, int], None] | None = None,
     painted: Callable[[tuple[tuple[int, int, int], ...]], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    gate: familiar.Gate | None = None,
 ) -> ClassMap:
     """Run the model over every window the grid marked, block by block.
+
+    **`gate` decides which answers are kept** - see `familiarity`. A window it refuses
+    is removed from `labels`, `probabilities` and `grid.inside` before this returns, so
+    nothing downstream can see it as tissue, and is recorded in `refused`. The live
+    paint feed leaves it out for the same reason. None runs ungated, which only the
+    tests and the geometry gate do.
 
     `read_window(x, y, span, size)` returns the pixels of a square region - level-0
     origin `(x, y)`, level-0 extent `span`, resampled to `size` of its own pixels. The
@@ -692,6 +719,17 @@ def classify(
 
     labels = np.full((grid.rows, grid.cols), OUTSIDE, dtype=np.int8)
     probabilities = np.zeros((grid.rows, grid.cols, len(CLASS_NAMES)), dtype=np.float32)
+    refused = np.full((grid.rows, grid.cols), familiar.ANSWERED, dtype=np.int8)
+    distance = np.full((grid.rows, grid.cols), np.nan, dtype=np.float32)
+
+    # The feature vector entering the head is what the reference was fitted on, so it is
+    # captured on the way in rather than recomputed - one forward pass either way.
+    captured: dict[str, Any] = {}
+    measure = gate is not None and gate.reference is not None
+    if measure:
+        from .model import penultimate
+
+        tap = penultimate(net)
 
     total = grid.windows
     done = 0
@@ -712,6 +750,18 @@ def classify(
 
         pixels = read_window(block.x, block.y, block.span, block.size)
         blocks += 1
+
+        # Measured on the pixels the window was cut from, before any transform: the
+        # model's input is standardised, and standardising a constant is not a constant.
+        flat = (
+            [
+                familiar.flat_share(pixels[top : top + grid.size, left : left + grid.size])
+                >= gate.max_flat_share
+                for top, left in block.offsets
+            ]
+            if gate is not None
+            else [False] * len(block.offsets)
+        )
 
         if channel == model_input.CHANNEL_RGB_HE:
             tensors = np.stack(
@@ -737,13 +787,41 @@ def classify(
 
         for start in range(0, len(tensors), batch_size):
             chunk = torch.from_numpy(tensors[start : start + batch_size])
-            with torch.inference_mode():
-                scores = torch.softmax(net(chunk), dim=1).numpy()
+            # Registered per batch and removed in `finally`: the net is cached across
+            # runs, and a pass that raised must not leave a hook on it.
+            hook = (
+                tap.register_forward_pre_hook(
+                    lambda _module, inputs: captured.__setitem__("features", inputs[0])
+                )
+                if measure
+                else None
+            )
+            try:
+                with torch.inference_mode():
+                    scores = torch.softmax(net(chunk), dim=1).numpy()
+            finally:
+                if hook is not None:
+                    hook.remove()
             batches += 1
+
+            far = np.zeros(len(scores), dtype=bool)
+            if measure:
+                measured = gate.reference.distance(captured["features"].numpy())
+                far = measured > gate.reference.threshold
 
             decided: list[tuple[int, int, int]] = []
             for offset, vector in enumerate(scores):
                 row, col = block.cells[start + offset]
+                if measure:
+                    distance[row, col] = measured[offset]
+                # Flat first: it is the cheaper and the more certain of the two, and a
+                # fill is unfamiliar too, so reporting it as flat says more.
+                if flat[start + offset]:
+                    refused[row, col] = familiar.FLAT
+                    continue
+                if far[offset]:
+                    refused[row, col] = familiar.UNFAMILIAR
+                    continue
                 label = _decide(vector, tau)
                 probabilities[row, col] = vector
                 labels[row, col] = label
@@ -763,6 +841,11 @@ def classify(
                 f"stopped after {done:,} of {total:,} patches"
             )
 
+    # Out of `inside` as well as out of the labels: step 9 closes holes within
+    # `inside`, so a refused window left in it could be annexed by the close.
+    if gate is not None:
+        grid = replace(grid, inside=grid.inside & (refused == familiar.ANSWERED))
+
     counts = tuple(int((labels == label).sum()) for label in range(len(CLASS_NAMES)))
     cell = grid.cell_mm2
 
@@ -780,6 +863,9 @@ def classify(
         batches=batches,
         blocks_read=blocks,
         seconds=round(time.monotonic() - started, 2),
+        refused=refused if gate is not None else None,
+        distance=distance if gate is not None else None,
+        gate=gate,
     )
 
 

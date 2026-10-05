@@ -50,6 +50,7 @@ from app.core.config import MODELS_ROOT, settings
 from app.core.logging import get_logger
 
 from . import branches
+from . import familiarity
 from . import input as model_input
 from .classes import CLASS_NAMES, verify_order
 
@@ -345,6 +346,10 @@ class Pinned:
     licence_track: str
     licences: dict[str, str]
 
+    #: What "familiar" means for this head - see `familiarity`. None when no reference
+    #: was published beside the checkpoint; the flat test still runs without one.
+    familiarity: familiarity.Reference | None = None
+
     @property
     def classes(self) -> tuple[str, ...]:
         return tuple(self.manifest.get("classes") or CLASS_NAMES)
@@ -505,6 +510,7 @@ def load_pinned(name: str | None = None, *, verify: bool = True) -> Pinned:
     net = _build_and_load(candidate.checkpoint, classes=len(manifest["classes"]),
                           arch=str(manifest.get("arch", "resnet18")))
     track, licences = _licence_track(manifest)
+    reference = _load_familiarity(candidate.checkpoint, manifest, name=chosen)
 
     pinned = Pinned(
         name=chosen,
@@ -519,6 +525,7 @@ def load_pinned(name: str | None = None, *, verify: bool = True) -> Pinned:
         sha256=str(manifest.get("sha256")),
         licence_track=track,
         licences=licences,
+        familiarity=reference,
     )
 
     # `checkpoint`, not `name`: `name` is a reserved `LogRecord` attribute and
@@ -540,6 +547,54 @@ def load_pinned(name: str | None = None, *, verify: bool = True) -> Pinned:
     with _CACHE_LOCK:
         _CACHE[chosen] = pinned
     return pinned
+
+
+def familiarity_path(checkpoint: Path) -> Path:
+    """Where a checkpoint's familiarity reference is published: right beside it."""
+    return checkpoint.with_name(checkpoint.stem + familiarity.SUFFIX)
+
+
+def _load_familiarity(
+    checkpoint: Path, manifest: dict[str, Any], *, name: str
+) -> familiarity.Reference | None:
+    """The reference beside this checkpoint, or None - refusing one for other data.
+
+    A reference built from a different training export describes a different
+    distribution, and the gate would then refuse or pass windows for reasons that have
+    nothing to do with this head. The two records carry the same fingerprint, so the
+    match is checked rather than assumed.
+    """
+    path = familiarity_path(checkpoint)
+    if not path.is_file():
+        return None
+    try:
+        reference = familiarity.load(path)
+    except ValueError as exc:
+        raise ModelError(str(exc)) from None
+
+    expected = (manifest.get("training_data") or {}).get("manifest_fingerprint")
+    if expected and reference.fingerprint != expected:
+        raise ModelError(
+            f"{path.name} was built from training export {reference.fingerprint[:12]}... "
+            f"but {name} was fitted on {str(expected)[:12]}.... Rebuild it with "
+            "scripts/build_familiarity_references.py."
+        )
+    if reference.dim != 2 * FEATURE_DIM and manifest.get("arch") == CONCAT_ARCH:
+        raise ModelError(
+            f"{path.name} describes {reference.dim}-dimensional features and {name} "
+            f"reads {2 * FEATURE_DIM}."
+        )
+    return reference
+
+
+def penultimate(net: Any) -> Any:
+    """The layer whose *input* is the feature vector the familiarity gate reads.
+
+    The head of a two-body checkpoint, or the classifier of a plain ResNet18 - in both
+    cases the vector entering it is exactly what `03_features.py` cached for training,
+    which is what makes the served distance comparable with the reference.
+    """
+    return net.head if hasattr(net, "head") else net.fc
 
 
 #: The architecture string a two-body checkpoint records. A manifest without `arch`, or

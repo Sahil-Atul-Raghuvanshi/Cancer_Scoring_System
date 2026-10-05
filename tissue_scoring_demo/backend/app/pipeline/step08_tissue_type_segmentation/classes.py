@@ -67,8 +67,10 @@ CLASS_MEANING: dict[int, str] = {
     1: "DCIS, LCIS, normal ducts and lobules - excluded (Rule 5)",
     2: "invasive carcinoma - the only thing scored",
     UNCERTAIN: (
-        "an in-situ call the uncertainty layer would not stand behind - excluded, and "
-        "already excluded by Rule 5 before it was flagged"
+        "an in-situ call the uncertainty layer would not stand behind - already excluded "
+        "by Rule 5 - or a window the refusal gate kept from the model altogether "
+        "(scanner fill, or features beyond every genuine held-out tile), which has no "
+        "class at all"
     ),
 }
 
@@ -89,9 +91,10 @@ CLASS_PLAIN: dict[int, str] = {
     "decisions are based on tumour that has spread out.",
     2: "Tumour cells that have grown out into the surrounding tissue. This is the "
     "only tissue the final score is measured on.",
-    UNCERTAIN: "The model called this tumour inside a duct, but the surroundings or "
-    "the shape do not support that. Shown separately rather than counted, and worth "
-    "a human look. It was not going to be scored either way.",
+    UNCERTAIN: "Either the model called this tumour inside a duct but the surroundings "
+    "or the shape do not support that, or the patch was blank scanner background or "
+    "looked unlike anything the model was trained on, so its answer was not used. "
+    "Never scored, and worth a human look.",
 }
 
 #: Overlay colours, one per class, chosen to survive being drawn at 55% opacity over

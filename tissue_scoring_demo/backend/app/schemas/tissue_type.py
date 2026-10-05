@@ -246,6 +246,11 @@ class TissueTypeParams(APIModel):
     """
 
     model: str
+    #: The refusal rule this pass ran under, as `familiarity.Gate.signature` - which
+    #: windows the model was allowed to answer for. Null on the per-pixel option.
+    familiarity: str | None = None
+    #: Step 3's mask by identity, so a pass is tied to the tissue it was gated on.
+    tissue_mask_key: str | None = None
     #: Which of step 7's options this pass ran on. Recorded because it, and not the
     #: field of view alone, decides which checkpoint serves: the two branches share
     #: all four geometries, so `windowUm` no longer names one head.
@@ -611,6 +616,30 @@ class TissueTypeCaveat(APIModel):
     detail: str
 
 
+class TissueTypeRefusal(APIModel):
+    """Windows the model was not allowed to answer for, and why.
+
+    A refused window is out of the class map entirely - no class, no probability, not
+    part of the tissue step 9 draws on - so these windows are in no class's area and
+    not in `tumourContent`'s denominator. See `step08.../familiarity.py`.
+    """
+
+    flat_windows: int = Field(
+        description="Windows that were mostly one constant value - scanner fill, not an image"
+    )
+    unfamiliar_windows: int = Field(
+        description="Windows whose features lie beyond every genuine held-out tile"
+    )
+    refused_mm2: float
+    refused_share: float = Field(description="Refused windows over every window run")
+    max_flat_share: float
+    #: Null when this head has no published reference - the flat test ran alone.
+    distance_threshold: float | None = None
+    distance_calibration: str | None = Field(
+        default=None, description="Where the distance cut was read from, in words"
+    )
+
+
 class TissueTypeReport(APIModel):
     """Everything step 8 produced for one slide."""
 
@@ -642,6 +671,14 @@ class TissueTypeReport(APIModel):
             "on a class map written before the layer existed. It can only ever qualify "
             "in-situ windows, which Rule 5 excludes anyway, so `tumourContent` and "
             "`scoredMm2` are identical with it and without it."
+        ),
+    )
+
+    refused: TissueTypeRefusal | None = Field(
+        default=None,
+        description=(
+            "Windows refused before their answer was kept. Null on the per-pixel option "
+            "and on a class map written before the gate existed."
         ),
     )
 

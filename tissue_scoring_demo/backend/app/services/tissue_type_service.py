@@ -61,6 +61,7 @@ from app.pipeline.step08_tissue_type_segmentation.branches import (
     parse_branch,
 )
 from app.pipeline.step08_tissue_type_segmentation import (
+    familiarity,
     inference,
     model,
     overlay,
@@ -96,6 +97,7 @@ from app.schemas.tissue_type import (
     TissueTypeParams,
     TissueTypeReport,
     TissueTypeRun,
+    TissueTypeRefusal,
     TissueTypeUncertainty,
     TissueTypeUncertaintyParams,
 )
@@ -543,6 +545,13 @@ class TissueTypeService:
             "qc_gated": report.params.qc_gated,
             "qc_source": report.params.qc_source,
             "min_tissue_share": settings.tissue_type_min_tissue_share,
+            # Step 3's mask, by identity. The threshold above does not pin it: the same
+            # cut over a mask step 3 has since corrected - P-05's scanner fill, taken
+            # out of it - is a different set of windows, and a class map cached before
+            # the correction would otherwise keep being served as current.
+            "tissue_mask_key": tissue_service.footprint(
+                upload_id, threshold=report.params.tissue_threshold
+            ).key,
             "block_windows": settings.tissue_type_block_windows,
             "device": capability.device,
             # The uncertainty layer's own settings. Resolved here, with everything else
@@ -651,7 +660,17 @@ class TissueTypeService:
             "input_channel": pinned.channel,
             "per_pixel": False,
             "batch_size": settings.tissue_type_batch_size,
+            # Which windows the model is allowed to answer for - see `familiarity`.
+            # In the key, because a changed cut changes which windows have a class.
+            "familiarity": self._gate(pinned).signature,
         }
+
+    @staticmethod
+    def _gate(pinned: model.Pinned) -> familiarity.Gate:
+        return familiarity.Gate(
+            reference=pinned.familiarity,
+            max_flat_share=settings.tissue_type_max_flat_share,
+        )
 
     @staticmethod
     def _cache_key(params: dict[str, Any]) -> dict[str, Any]:
@@ -692,6 +711,8 @@ class TissueTypeService:
                 "min_tissue_share",
                 "qc_gated",
                 "qc_source",
+                "tissue_mask_key",
+                "familiarity",
                 # The BEETLE option's own inputs. Every one of them changes the mask:
                 # `folds` changes what is averaged, `patch_step` changed a checkerboard
                 # into a coherent map, and `mask_mpp` is the resolution the answer is
@@ -1219,6 +1240,7 @@ class TissueTypeService:
                     progress=self._progress(job),
                     painted=self._painter(job),
                     should_stop=self._stopper(job),
+                    gate=self._gate(pinned),
                 )
 
                 # **The second stage, and it runs here rather than inside `classify`.**
@@ -1234,7 +1256,9 @@ class TissueTypeService:
                     uncertainty=uncertainty.derive(
                         result.labels,
                         result.probabilities,
-                        grid.inside,
+                        # The result's grid, not the one laid above: refused windows
+                        # have left `inside`, and the layer must not see them.
+                        result.grid.inside,
                         candidate=CANDIDATE,
                         rival=RIVAL,
                         # Microns, not cells - see `uncertainty.derive`. The stride is
@@ -1538,6 +1562,19 @@ class TissueTypeService:
                 [class_map.batches, class_map.blocks_read, class_map.seconds],
                 dtype=np.float64,
             ),
+            # Which windows the gate refused and how far each measured. `inside` above
+            # is already the gated one; these are the record of why it shrank.
+            **(
+                {}
+                if class_map.refused is None
+                else {
+                    "refused": class_map.refused,
+                    "familiarity_distance": class_map.distance,
+                    "familiarity_gate": np.array(
+                        class_map.gate.signature if class_map.gate else ""
+                    ),
+                }
+            ),
             # The uncertainty layer, stored rather than re-derived on read. It *is* a
             # pure function of `labels` and `probabilities` above, so recomputing would
             # give the same answer - but only under the same settings, and the settings
@@ -1769,6 +1806,13 @@ class TissueTypeService:
             probabilities = stored["probabilities"]
             counters = stored["counters"]
             layer = self._stored_layer(stored)
+            # Absent on a map written before the gate - read as "not gated".
+            refused = stored["refused"] if "refused" in stored.files else None
+            distance = (
+                stored["familiarity_distance"]
+                if "familiarity_distance" in stored.files
+                else None
+            )
 
         counts = tuple(int((labels == label).sum()) for label in range(len(CLASS_NAMES)))
         cell = grid.cell_mm2
@@ -1782,6 +1826,8 @@ class TissueTypeService:
             blocks_read=int(counters[1]),
             seconds=float(counters[2]),
             uncertainty=layer,
+            refused=refused,
+            distance=distance,
         )
 
     @staticmethod
@@ -2161,6 +2207,7 @@ class TissueTypeService:
             tissue_mm2=tissue_mm2,
             mean_confidence=round(class_map.mean_confidence, 4),
             uncertainty=self._uncertainty_block(class_map),
+            refused=self._refusal_block(class_map, pinned),
             model=self._model_info(candidate, selected=True)
             if candidate is not None
             else TissueTypeModelInfo(
@@ -2193,6 +2240,11 @@ class TissueTypeService:
         total = max(1, class_map.classified)
         cell = class_map.grid.cell_mm2
         labels = class_map.display_labels
+        # Refused windows are drawn purple but were never classified, so they are not
+        # counted on any row - they are outside `classified`, and counting them here
+        # would make the shares sum past one. The report's `refused` block has them.
+        if class_map.refused is not None:
+            labels = np.where(class_map.refused == familiarity.ANSWERED, labels, inference.OUTSIDE)
         top = class_map.probabilities.max(axis=-1)
 
         drawn = DISPLAY_NAMES if class_map.uncertainty is not None else CLASS_NAMES
@@ -2219,6 +2271,30 @@ class TissueTypeService:
                 )
             )
         return rows
+
+    @staticmethod
+    def _refusal_block(class_map: ClassMap, pinned: model.Pinned) -> TissueTypeRefusal | None:
+        """The gate's verdict as the report carries it, or None on an ungated map."""
+        if class_map.refused is None:
+            return None
+        flat = class_map.refused_count(familiarity.FLAT)
+        unfamiliar = class_map.refused_count(familiarity.UNFAMILIAR)
+        ran = class_map.classified + flat + unfamiliar
+        reference = pinned.familiarity
+        return TissueTypeRefusal(
+            flat_windows=flat,
+            unfamiliar_windows=unfamiliar,
+            refused_mm2=round((flat + unfamiliar) * class_map.grid.cell_mm2, 4),
+            refused_share=round((flat + unfamiliar) / max(1, ran), 4),
+            max_flat_share=settings.tissue_type_max_flat_share,
+            distance_threshold=round(reference.threshold, 2) if reference else None,
+            distance_calibration=(
+                f"the farthest of {reference.held_out:,} tiles from institutions held out "
+                f"of training (quantile {reference.quantile:g})"
+                if reference
+                else None
+            ),
+        )
 
     @staticmethod
     def _uncertainty_block(class_map: ClassMap) -> TissueTypeUncertainty | None:
@@ -2381,6 +2457,24 @@ class TissueTypeService:
             "counting the contained tumour would answer a different question about a "
             "different patient."
         )
+
+        flat = class_map.refused_count(familiarity.FLAT)
+        unfamiliar = class_map.refused_count(familiarity.UNFAMILIAR)
+        if flat:
+            notes.append(
+                f"{flat:,} patches were not shown to the model's answer at all, because "
+                "almost every pixel in them was one identical colour. That is what a "
+                "scanner paints where it never took a picture, and no real tissue looks "
+                "like that. They are drawn purple and left out of every number above."
+            )
+        if unfamiliar:
+            notes.append(
+                f"{unfamiliar:,} patches looked unlike anything the model was trained on - "
+                "further out than any slide from the laboratories it was tested on. Its "
+                "answer there would be a guess, so it was not used: they are drawn purple "
+                "and left out of every number above. Worth a look - an unusual stain, a "
+                "fold, or tissue the model has simply never met."
+            )
 
         notes.append(
             "This is also where fat leaves the pipeline, and it is worth saying why it "

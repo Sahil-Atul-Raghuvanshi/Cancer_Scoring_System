@@ -179,6 +179,18 @@ class Settings(BaseSettings):
     # spreads over many and lands far below this.
     tissue_spike_share: float = 0.35
 
+    # Areas taken out of the mask whatever the threshold says - see
+    # `step03_tissue_mask.mask.scanner_fill` and `outside_glass`.
+    #   empty_min_mm2   smallest region of either kind removed. A square
+    #                   millimetre: the fill that caused this was 198 mm2, and
+    #                   one stray pixel matching a fill colour is not a region.
+    #   qc_glass_margin GrandQC's background is never taken within this distance
+    #                   of anything it did not call background. Its map is
+    #                   ~10 um/px and blocky at the edge, so step 3's own finer
+    #                   boundary decides there.
+    tissue_empty_min_mm2: float = 1.0
+    tissue_qc_glass_margin_um: float = 100.0
+
     # --- Step 4: white calibration ----------------------------------------
     #
     # Cached per upload like step 3's, and for the same reason: the RGB
@@ -723,6 +735,23 @@ class Settings(BaseSettings):
     # texture the slide does not have. `STANDARDISE_FLOOR` guards the extreme case; a
     # window with a tenth of a tile of real tissue clears it easily.
     tissue_type_min_tissue_share: float = 0.5
+
+    # Step 8's refusal - see `step08_tissue_type_segmentation/familiarity.py`.
+    #   max_flat_share  a window this share of whose pixels equal both neighbours is
+    #                   refused. Scanner fill measures 1.000; the worst genuine
+    #                   window seen, a pale IHC field, 0.392.
+    #   familiarity_quantile  the held-out-institution quantile the distance cut is
+    #                   read at when a reference is built. 1.0 - the farthest genuine
+    #                   held-out tile - because the OncoStem slides sit farther out
+    #                   than the held-out labs do: at 0.99 the cut refused 2-8% of
+    #                   genuine OncoStem H&E tissue (33% on one slide); at 1.0, 0-0.3%.
+    #   familiarity_min_held_out  fewest held-out tiles a cut may be read from. The
+    #                   672 um heads have 76, and their maximum still refused 3.7-5%
+    #                   of genuine tissue; below this no distance reference is
+    #                   published and the head keeps the flat test only.
+    tissue_type_max_flat_share: float = 0.75
+    tissue_type_familiarity_quantile: float = 1.0
+    tissue_type_familiarity_min_held_out: int = 300
 
     tissue_type_block_windows: int = 8
 

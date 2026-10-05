@@ -13,7 +13,13 @@ export type TissuePanelName = 'thumbnail' | 'saturation' | 'mask' | 'overlay'
 /** Which rule set the cut. `triangle` is Zack 1977, for spike-and-tail histograms. */
 export type TissueThresholdSource = 'otsu' | 'triangle' | 'manual'
 
-export type TissueStageKey = 'threshold' | 'closing' | 'opening' | 'components' | 'fill'
+export type TissueStageKey =
+  | 'threshold'
+  | 'empty'
+  | 'closing'
+  | 'opening'
+  | 'components'
+  | 'fill'
 
 export interface TissueParams {
   /** Resolution asked for, in microns per pixel. */
@@ -113,6 +119,22 @@ export interface TissueComponents {
   minAreaPx: number
 }
 
+/**
+ * Areas out of the mask at every threshold: scanner fill and the glass GrandQC
+ * found around the section. The two areas overlap - where both say so, they agree.
+ */
+export interface TissueEmpty {
+  /** Exact RGB values step 4's fill test found, most prevalent first. */
+  fillColours: number[][]
+  fillAreaMm2: number
+  /** 0 when step 2 did not run GrandQC's tissue model. */
+  qcGlassAreaMm2: number
+  /** Of the two combined, what the threshold had called tissue. */
+  removedAreaMm2: number
+  minAreaMm2: number
+  qcGlassMarginUm: number
+}
+
 export interface TissueReport {
   uploadId: string
   filename: string
@@ -132,6 +154,7 @@ export interface TissueReport {
 
   holesFilledPixels: number
   holesFilledAreaMm2: number
+  empty: TissueEmpty
 
   notes: string[]
   citation: string

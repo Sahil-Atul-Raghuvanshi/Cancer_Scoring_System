@@ -19,10 +19,8 @@
     "       match with a warning, because a fresh torchvision re-save is not",
     "       byte-reproducible across torch versions."
   ],
-
   "models_root": "models",
   "drive_folder": null,
-
   "files": [
     {
       "path": "beetle/model.zip",
@@ -204,6 +202,17 @@
       "sources": []
     },
     {
+      "path": "tissue_type/invasive_tile_fov112_fix1_concat.familiarity.npz",
+      "bytes": 11831927,
+      "sha256": "51ff239ca4f9a7f76a10c181c7b2c98b9b254a5b86255ddbc691c95f7ef72870",
+      "hash": "local-build",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the refusal gate's familiarity reference for invasive_tile_fov112_fix1_concat",
+      "retrain_with": "tissue_scoring_demo/backend: python scripts/build_familiarity_references.py",
+      "sources": []
+    },
+    {
       "path": "tissue_type/invasive_tile_fov112_he_concat.pt",
       "bytes": 90628045,
       "sha256": "3e67046529060ebdd04bbbfa34b1c8ee2593716d8b394c0dbe33ad8e109ddbb7",
@@ -212,6 +221,17 @@
       "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
       "used_by": "step 8 - the H&E colour branch at 112 um",
       "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel he --mpp 0.5, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov112_he_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov112_he_concat.familiarity.npz",
+      "bytes": 11746408,
+      "sha256": "91449b9b0f8572822f62ba81165875392de3df5b4cea8dd6ac76da84642bce39",
+      "hash": "local-build",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the refusal gate's familiarity reference for invasive_tile_fov112_he_concat",
+      "retrain_with": "tissue_scoring_demo/backend: python scripts/build_familiarity_references.py",
       "sources": []
     },
     {
@@ -226,6 +246,17 @@
       "sources": []
     },
     {
+      "path": "tissue_type/invasive_tile_fov224_concat.familiarity.npz",
+      "bytes": 11795112,
+      "sha256": "201706800fc0f5164e4f5b26e80f9b52fc0b527c86d377090f8a4604d02ab92a",
+      "hash": "local-build",
+      "role": "runtime",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the refusal gate's familiarity reference for invasive_tile_fov224_concat",
+      "retrain_with": "tissue_scoring_demo/backend: python scripts/build_familiarity_references.py",
+      "sources": []
+    },
+    {
       "path": "tissue_type/invasive_tile_fov224_he_concat.pt",
       "bytes": 90628045,
       "sha256": "0671ef64035a6cf06997162cfe79097361b60f89d1943aa9f1fe8fc9fa13c898",
@@ -234,6 +265,17 @@
       "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
       "used_by": "step 8 - the H&E colour branch at 224 um",
       "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel he --mpp 1.0, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov224_he_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov224_he_concat.familiarity.npz",
+      "bytes": 11717812,
+      "sha256": "8520cbcdb18b08515fbfc700ac1d171ba93ed7f5ac57527e1cffad7df9552764",
+      "hash": "local-build",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the refusal gate's familiarity reference for invasive_tile_fov224_he_concat",
+      "retrain_with": "tissue_scoring_demo/backend: python scripts/build_familiarity_references.py",
       "sources": []
     },
     {
@@ -248,6 +290,17 @@
       "sources": []
     },
     {
+      "path": "tissue_type/invasive_tile_fov448_concat.familiarity.npz",
+      "bytes": 11827031,
+      "sha256": "7a4daa72ae940103aaedf25e1fb0f55dee73d676853d30c5535c61ed94997216",
+      "hash": "local-build",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the refusal gate's familiarity reference for invasive_tile_fov448_concat",
+      "retrain_with": "tissue_scoring_demo/backend: python scripts/build_familiarity_references.py",
+      "sources": []
+    },
+    {
       "path": "tissue_type/invasive_tile_fov448_he_concat.pt",
       "bytes": 90628045,
       "sha256": "f568ff4fe6f8fdd03c64674cd653718cbc5c437e7362b9b98bbb1f75a635eee4",
@@ -256,6 +309,17 @@
       "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
       "used_by": "step 8 - the H&E colour branch at 448 um",
       "retrain_with": "tissue_type_model_training: scripts/02_export.py --channel he --mpp 2.0, then 03_features.py for both inits, then 08_fit_concat_mlp.py --publish invasive_tile_fov448_he_concat",
+      "sources": []
+    },
+    {
+      "path": "tissue_type/invasive_tile_fov448_he_concat.familiarity.npz",
+      "bytes": 11727413,
+      "sha256": "5865d4a873d43a64009811c86e6d1d3f70841062caf80b30682f2596ba2d52d3",
+      "hash": "local-build",
+      "role": "optional",
+      "licence": "RESEARCH ONLY (BCSS CC0 + BRACS non-commercial + BEETLE CC BY-NC-SA 4.0 + BACH CC BY-NC-ND 4.0 - the ND term is UNRESOLVED: whether a model fitted on it is a derivative work has not been decided. Do not distribute externally.)",
+      "used_by": "step 8 - the refusal gate's familiarity reference for invasive_tile_fov448_he_concat",
+      "retrain_with": "tissue_scoring_demo/backend: python scripts/build_familiarity_references.py",
       "sources": []
     },
     {

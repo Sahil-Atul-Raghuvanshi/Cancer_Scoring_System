@@ -84,6 +84,17 @@ it can only ever land on class 1 — which Rule 5 excludes before it is looked a
 `CLASS_NAMES` stays three for the same reason: it is the checkpoint's contract, and
 appending to it would make every published head fail `verify_order`.
 
+**Class 3 is also where refused windows are drawn, and those *do* change the score —
+by design.** `familiarity.py` runs inside `classify`, before an answer is kept, and
+refuses a window on either of two tests: its pixels are mostly one constant value
+(scanner fill — P-05, where the H&E head called a lilac rectangle invasive at P = 0.61),
+or its features lie beyond every genuine held-out tile (class-conditional Mahalanobis,
+per head, from `<head>.familiarity.npz`). A refused window leaves `labels`,
+`probabilities` *and* `grid.inside`, so no step after this one can see it as tissue; it
+is drawn purple and counted in the report's `refused` block, never on a class row.
+Rebuild the references with `scripts/build_familiarity_references.py` whenever a head is
+re-published — the loader refuses one built from different training data.
+
 Two of the guide's ordering rules land here and they are the reason the step exists:
 **fat leaves here rather than at the tissue mask**, because fat is a semantic class and
 not a brightness; and **scoring is gated on invasive tumour rather than on "tumour"**,
@@ -97,6 +108,8 @@ input.py       THE input transform - RGB to the tensor the network sees. Read fi
 classes.py     the three classes, which one is scored, and the class-order refusal
 model.py       finding, verifying and loading a checkpoint. Four refusals.
 inference.py   the window grid, the block reads, the sweep, the batching, the class map
+familiarity.py the refusal gate: flat windows and unfamiliar features, before an answer
+               is kept. Its docstring has the measurements behind both cuts.
 uncertainty.py the post-pass that adds "cannot determine". Read its docstring before
                touching the rule - three formulations that look right are wrong there,
                and each one is wrong against a slide this project measured.

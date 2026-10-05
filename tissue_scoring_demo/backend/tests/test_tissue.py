@@ -33,7 +33,10 @@ from app.pipeline.step03_tissue_mask.mask import (
     artefact_footprint,
     build_mask,
     choose_threshold,
+    outside_glass,
+    scanner_fill,
 )
+from app.pipeline.step02_quality_control import classes as qc_classes
 
 # --- the shared maths --------------------------------------------------------
 
@@ -419,6 +422,109 @@ def test_artefacts_resample_by_nearest_neighbour_not_by_averaging() -> None:
     assert footprint.shape == (8, 8)
     assert footprint[:, :4].all()
     assert not footprint[:, 4:].any()
+
+
+# --- scanner fill and outside glass ------------------------------------------
+
+#: The fill measured on CAN_00259 and CAN_00865: one constant lilac, saturation 8.
+_LILAC = (181, 180, 186)
+
+
+def _slide_with_fill() -> np.ndarray:
+    """The tissue block, plus a lilac fill rectangle in the lower right."""
+    rgb = _synthetic_slide()
+    rgb[170:200, 120:200] = _LILAC
+    return rgb
+
+
+def test_a_scanner_fill_passes_a_low_threshold_and_is_removed_anyway() -> None:
+    """P-05 as arithmetic: at a cut of 1, a lilac fill is 'tissue' unless removed."""
+    rgb = _slide_with_fill()
+    fill = scanner_fill(rgb, [_LILAC], mpp=2.0, min_area_mm2=0.001)
+
+    without = _build(rgb, threshold=1)
+    with_empty = _build(rgb, threshold=1, empty=fill)
+
+    assert without.mask[185, 160]
+    assert not with_empty.mask[185, 160]
+    assert with_empty.mask[100, 100]  # the tissue is untouched
+    assert with_empty.empty_removed_pixels == 30 * 80
+
+
+def test_the_removal_has_its_own_rung_on_the_ladder() -> None:
+    rgb = _slide_with_fill()
+    fill = scanner_fill(rgb, [_LILAC], mpp=2.0, min_area_mm2=0.001)
+    result = _build(rgb, threshold=1, empty=fill)
+
+    keys = [stage.key for stage in result.stages]
+    assert keys == ["threshold", "empty", "closing", "opening", "components", "fill"]
+    stages = {stage.key: stage.pixels for stage in result.stages}
+    assert stages["threshold"] - stages["empty"] == 30 * 80
+
+
+def test_a_fill_ringed_by_tissue_is_not_filled_back_in() -> None:
+    """An enclosed pale hole by every test `_fill_small_holes` makes, and still not tissue."""
+    rgb = _synthetic_slide()
+    rgb[80:120, 80:120] = _LILAC  # 1,600 px = 0.0064 mm2, under the fill-hole cap
+    fill = scanner_fill(rgb, [_LILAC], mpp=2.0, min_area_mm2=0.001)
+
+    # Above the fill's saturation, so the threshold cuts it out and only hole
+    # filling could put it back.
+    result = _build(rgb, threshold=20, empty=fill)
+    assert not result.mask[100, 100]
+    assert result.mask[60, 60]
+
+
+def test_one_pixel_on_the_fill_colour_is_not_a_region() -> None:
+    rgb = _synthetic_slide()
+    rgb[100, 100] = _LILAC
+    assert not scanner_fill(rgb, [_LILAC], mpp=2.0, min_area_mm2=0.001).any()
+
+
+def test_only_the_exact_colour_counts_as_fill() -> None:
+    """One level off is something the scanner imaged, not something it painted."""
+    rgb = _slide_with_fill()
+    assert not scanner_fill(rgb, [(181, 180, 187)], mpp=2.0, min_area_mm2=0.001).any()
+
+
+def _qc_map(size: int = 200) -> np.ndarray:
+    """GrandQC coding: background everywhere, tissue over the block."""
+    qc = np.full((size, size), qc_classes.BACKGROUND, dtype=np.uint8)
+    qc[40:160, 40:160] = qc_classes.TISSUE
+    return qc
+
+
+def test_grandqc_glass_is_taken_only_past_the_margin() -> None:
+    glass = outside_glass(
+        _qc_map(), shape=(200, 200), mpp=2.0, margin_um=20.0, min_area_mm2=0.001
+    )
+    assert glass[190, 190]
+    assert not glass[45, 45]  # GrandQC tissue
+    assert not glass[165, 100]  # 5 px = 10 um from the tissue, inside the margin
+    assert glass[175, 100]  # 15 px = 30 um, past it
+
+
+def test_an_enclosed_grandqc_void_is_left_to_hole_filling() -> None:
+    """Rule 1: an enclosed background region is a fat lobule as often as a gap."""
+    qc = _qc_map()
+    qc[80:120, 80:120] = qc_classes.BACKGROUND
+    glass = outside_glass(qc, shape=(200, 200), mpp=2.0, margin_um=2.0, min_area_mm2=0.001)
+    assert not glass[100, 100]
+    assert glass[190, 190]
+
+
+def test_unanalysed_padding_leads_to_the_edge_but_is_never_removed() -> None:
+    """Step 2 pads its mask with 0 - 'never looked at', which is not 'glass'."""
+    qc = _qc_map()
+    qc[:, 195:] = qc_classes.UNANALYSED
+    qc[0:5, :] = qc_classes.TISSUE
+    qc[195:, :] = qc_classes.TISSUE
+    qc[:, 0:5] = qc_classes.TISSUE
+    # The background right of the block now reaches the frame edge only
+    # through the padding.
+    glass = outside_glass(qc, shape=(200, 200), mpp=2.0, margin_um=2.0, min_area_mm2=0.001)
+    assert glass[100, 180]
+    assert not glass[:, 195:].any()
 
 
 # --- the panels --------------------------------------------------------------

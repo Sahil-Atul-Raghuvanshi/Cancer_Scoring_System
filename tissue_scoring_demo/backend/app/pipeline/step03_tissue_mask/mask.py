@@ -100,6 +100,110 @@ def artefact_footprint(
     return np.asarray(resized).astype(bool)
 
 
+# --- what is certainly not tissue ---------------------------------------------
+#
+# Two maps of pixels that are removed from the mask whatever the threshold says,
+# and they are here because the threshold cannot be trusted to remove them. On a
+# spike-and-tail histogram the triangle rule cuts at saturation 1 or 2, which is
+# "any colour at all" - and a scanner's lilac fill has saturation 8. Measured on
+# CAN_00259 and CAN_00865: a 198 mm2 rectangle of one constant colour passed the
+# threshold, became the slide's largest region, and step 8 called it invasive.
+#
+# Neither map touches the histogram. Taking them out of the histogram would
+# move the cut on every slide, which is a separate question with its own
+# evidence; this only stops the cut being applied where there is nothing to cut.
+
+
+def scanner_fill(
+    rgb: np.ndarray,
+    colours: list[tuple[int, int, int]],
+    *,
+    mpp: float,
+    min_area_mm2: float,
+) -> np.ndarray:
+    """Pixels of an exact digital fill colour, in regions of at least `min_area_mm2`.
+
+    `colours` comes from step 4's `detect_fills`, which decides that a colour is
+    a fill by the one property a scan cannot have - nothing written within one
+    level of it - so a colour that passes is a constant, not pale tissue. The area
+    floor is the second guard: a single tissue pixel can land on the fill's value
+    by chance, a square millimetre of them cannot. Rule 1 is not in play here -
+    fat carries sensor noise like everything else that was imaged.
+    """
+    from scipy import ndimage
+
+    exact = np.zeros(rgb.shape[:2], dtype=bool)
+    for colour in colours:
+        exact |= np.all(rgb == np.array(colour, dtype=rgb.dtype), axis=-1)
+    if not exact.any():
+        return exact
+
+    labels, found = ndimage.label(exact)
+    sizes = np.bincount(labels.ravel(), minlength=found + 1)
+    keep = sizes >= _area_px(min_area_mm2, mpp)
+    keep[0] = False
+    return keep[labels]
+
+
+def outside_glass(
+    qc_mask: np.ndarray,
+    *,
+    shape: tuple[int, int],
+    mpp: float,
+    margin_um: float,
+    min_area_mm2: float,
+) -> np.ndarray:
+    """GrandQC's background, where it is the glass around the section.
+
+    Step 2's tissue model is a segmentation network, and it calls a scanner fill
+    background where step 3's saturation rule calls it tissue. Its verdict is
+    taken only where it cannot cost tissue, and two limits make that so:
+
+      outside only   a background region must reach the edge of the frame. An
+                     enclosed one is a fat lobule or a lumen as often as it is a
+                     gap, and Rule 1 says fat stays; enclosed voids remain
+                     `_fill_small_holes`'s decision, as they were.
+      a margin       GrandQC's map is ~10 um/px and blocky at the section's
+                     edge, so nothing within `margin_um` of anything it did *not*
+                     call background is taken. Step 3's own boundary stands there.
+
+    The unanalysed margin step 2 pads its mask with counts as a route to the
+    frame edge but is never itself removed - it was never looked at.
+    """
+    from scipy import ndimage
+
+    from app.pipeline.step02_quality_control import classes as qc_classes
+
+    resized = np.asarray(
+        Image.fromarray(qc_mask.astype(np.uint8)).resize(
+            (shape[1], shape[0]), Image.Resampling.NEAREST
+        )
+    )
+    background = resized == qc_classes.BACKGROUND
+    open_space = background | (resized == qc_classes.UNANALYSED)
+
+    labels, found = ndimage.label(open_space)
+    if found == 0:
+        return np.zeros(shape, dtype=bool)
+
+    border = np.unique(
+        np.concatenate([labels[0, :], labels[-1, :], labels[:, 0], labels[:, -1]])
+    )
+    reaches_edge = np.zeros(found + 1, dtype=bool)
+    reaches_edge[border[border > 0]] = True
+    glass = reaches_edge[labels] & background
+
+    # Distance to the nearest pixel GrandQC did not call open space.
+    clearance = ndimage.distance_transform_edt(open_space)
+    glass &= clearance > _radius_px(margin_um, mpp)
+
+    labels, found = ndimage.label(glass)
+    sizes = np.bincount(labels.ravel(), minlength=found + 1)
+    keep = sizes >= _area_px(min_area_mm2, mpp)
+    keep[0] = False
+    return keep[labels]
+
+
 # --- the cleanup -------------------------------------------------------------
 
 
@@ -226,6 +330,9 @@ class TissueMask:
     components: Components | None = None
     holes_filled_pixels: int = 0
     artefact_pixels: int = 0
+    #: Pixels the threshold kept that were scanner fill or outside glass, and so
+    #: were taken out regardless. See `scanner_fill` and `outside_glass`.
+    empty_removed_pixels: int = 0
 
     @property
     def tissue_pixels(self) -> int:
@@ -286,7 +393,9 @@ def _filter_components(
     )
 
 
-def _fill_small_holes(mask: np.ndarray, *, max_px: int) -> tuple[np.ndarray, int]:
+def _fill_small_holes(
+    mask: np.ndarray, *, max_px: int, keep_out: np.ndarray | None = None
+) -> tuple[np.ndarray, int]:
     """Fill enclosed low-saturation regions below `max_px`. Returns the mask and area filled.
 
     This is Rule 1 made mechanical. A fat lobule inside a block of tissue is
@@ -301,6 +410,9 @@ def _fill_small_holes(mask: np.ndarray, *, max_px: int) -> tuple[np.ndarray, int
     left alone. Fat at the *edge* of the section is still lost, and no amount of
     morphology recovers it; that is the honest limit of a threshold, and it is
     why fat is a semantic class at step 8 rather than a geometry problem here.
+
+    `keep_out` is never filled: a block of scanner fill ringed by tissue is an
+    enclosed pale hole by every test above, and it is still not tissue.
     """
     from scipy import ndimage
 
@@ -319,6 +431,8 @@ def _fill_small_holes(mask: np.ndarray, *, max_px: int) -> tuple[np.ndarray, int
     fillable[outside[outside > 0]] = False
 
     filled = fillable[holes]
+    if keep_out is not None:
+        filled &= ~keep_out
     return mask | filled, int(np.count_nonzero(filled))
 
 
@@ -333,6 +447,7 @@ def build_mask(
     min_component_mm2: float,
     fill_hole_max_mm2: float,
     spike_share: float,
+    empty: np.ndarray | None = None,
 ) -> TissueMask:
     """Threshold and clean up, recording the mask after every move.
 
@@ -340,6 +455,11 @@ def build_mask(
     histogram as well as the mask, which is the whole point of running QC first:
     a pen mark left in the histogram pulls the cut towards the ink and, on a
     faintly stained slide, can push it clean past the tissue.
+
+    `empty` - scanner fill and outside glass - bounds the mask only, and is held
+    out of every later move as well: closing cannot grow back into it and hole
+    filling cannot fill it. It gets its own rung on the ladder, so the area it
+    took is on screen rather than folded into the threshold's.
 
     `threshold` of None means "let the histogram's shape choose the rule" - see
     `choose_threshold`. Passing one makes the run a manual comparison. Either
@@ -372,6 +492,24 @@ def build_mask(
         )
     )
 
+    empty_removed = 0
+    if empty is not None:
+        empty_removed = int(np.count_nonzero(mask & empty))
+        mask &= ~empty
+        stages.append(
+            Cleanup(
+                key="empty",
+                label="Remove scanner background",
+                what=(
+                    "Removes areas that cannot be tissue even though they have a little"
+                    " colour: the flat fill a scanner paints where it never imaged, and"
+                    " glass that step 2's tissue model found around the section."
+                ),
+                extent_um=None,
+                pixels=int(np.count_nonzero(mask)),
+            )
+        )
+
     # A 3x3 structure applied N times dilates by an N-pixel radius, and is
     # markedly faster than building one large element - the same trick step 2's
     # feature pass uses, and for the same reason.
@@ -379,6 +517,8 @@ def build_mask(
 
     close_px = _radius_px(close_um, mpp)
     mask = ndimage.binary_closing(mask, structure=square, iterations=close_px)
+    if empty is not None:
+        mask &= ~empty
     stages.append(
         Cleanup(
             key="closing",
@@ -425,7 +565,7 @@ def build_mask(
     )
 
     fill_px = _area_px(fill_hole_max_mm2, mpp)
-    mask, filled = _fill_small_holes(mask, max_px=fill_px)
+    mask, filled = _fill_small_holes(mask, max_px=fill_px, keep_out=empty)
     stages.append(
         Cleanup(
             key="fill",
@@ -451,4 +591,5 @@ def build_mask(
         components=components,
         holes_filled_pixels=filled,
         artefact_pixels=int(considered.size - np.count_nonzero(considered)),
+        empty_removed_pixels=empty_removed,
     )

@@ -117,6 +117,10 @@ export interface TissueTypeCapability {
 
 export interface TissueTypeParams {
   model: string
+  /** The refusal rule the pass ran under. Null on the per-pixel option. */
+  familiarity?: string | null
+  /** Step 3's mask by identity. */
+  tissueMaskKey?: string | null
   modelSha256: string | null
   licenceTrack: LicenceTrack
 
@@ -406,9 +410,26 @@ export interface TissueTypeReport {
    */
   uncertainty: TissueTypeUncertainty | null
 
+  /**
+   * Patches refused before their answer was kept: scanner fill, or something unlike
+   * anything the model was trained on. They have no class and are in no number above.
+   * Null on the per-pixel option and on a pass that ran before the check existed.
+   */
+  refused?: TissueTypeRefusal | null
+
   model: TissueTypeModelInfo
   caveats: TissueTypeCaveat[]
 
   notes: string[]
   citation: string
+}
+
+export interface TissueTypeRefusal {
+  flatWindows: number
+  unfamiliarWindows: number
+  refusedMm2: number
+  refusedShare: number
+  maxFlatShare: number
+  distanceThreshold: number | null
+  distanceCalibration: string | null
 }

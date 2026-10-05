@@ -141,7 +141,9 @@ class TissueHistogram(APIModel):
 class TissueStage(APIModel):
     """The mask after one move of the cleanup."""
 
-    key: str = Field(description="'threshold', 'closing', 'opening', 'components' or 'fill'")
+    key: str = Field(
+        description="'threshold', 'empty', 'closing', 'opening', 'components' or 'fill'"
+    )
     label: str
     what: str = Field(description="What the move does, and why it is that way round")
     extent_um: float | None = Field(
@@ -170,6 +172,27 @@ class TissueComponents(APIModel):
     min_area_px: int = Field(description="The same cutoff in pixels on this grid, for checking")
 
 
+class TissueEmpty(APIModel):
+    """Areas taken out of the mask at every threshold, and the two reasons why.
+
+    The two areas are reported separately and they overlap: GrandQC calls a
+    scanner fill background as well, so where both say so they agree.
+    """
+
+    fill_colours: list[list[int]] = Field(
+        description="Exact RGB values step 4's fill test found, most prevalent first"
+    )
+    fill_area_mm2: float = Field(description="Regions painted in one of those colours")
+    qc_glass_area_mm2: float = Field(
+        description="GrandQC background reaching the frame edge, past the margin; 0 without GrandQC"
+    )
+    removed_area_mm2: float = Field(
+        description="Of the two combined, what the threshold had called tissue"
+    )
+    min_area_mm2: float
+    qc_glass_margin_um: float
+
+
 class TissueReport(APIModel):
     """Everything step 3 produced for one slide at one threshold."""
 
@@ -193,6 +216,7 @@ class TissueReport(APIModel):
 
     holes_filled_pixels: int
     holes_filled_area_mm2: float
+    empty: TissueEmpty
 
     notes: list[str] = Field(
         default_factory=list,
