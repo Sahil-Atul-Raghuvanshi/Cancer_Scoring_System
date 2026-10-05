@@ -160,6 +160,12 @@ class PerCellService:
         width_um: float,
         is_membrane: bool,
         shape: tuple[int, int],
+        shell_um: float | None,
+        nuclei_generated_at: str | None,
+        typing_stamp: str | None,
+        field_x: int,
+        field_y: int,
+        cell_ids: set[int],
     ) -> tuple[geometry.Compartments | None, str | None]:
         """Step 13's compartments for one field, or None and the reason why.
 
@@ -177,6 +183,12 @@ class PerCellService:
         ordinary. So a stored geometry is used only when it was built at this
         marker's own width, for tumour cells, in the shape this field actually is;
         anything else is rebuilt here and the disagreement is reported.
+
+        **What it was built from is checked too (P-15)** - the nuclei run, the typing,
+        the field's position and the shell - and the cells in it must be exactly the
+        cells this step is about to measure. A geometry from before the stamps existed
+        is rebuilt: it cannot say what it was built from, so it cannot be trusted to
+        match.
         """
         path = compartment_service.artifact(
             he_upload_id, ihc_upload_id, f"region{rank}", f"f{index}_geometry.npz"
@@ -207,6 +219,31 @@ class PerCellService:
                     return None, (
                         f"step 13's geometry for region {rank} field {index} is "
                         f"{nucleus.shape}, against a label map of {shape}"
+                    )
+                if "typing_stamp" not in stored.files:
+                    return None, (
+                        f"step 13's geometry for region {rank} field {index} predates "
+                        "provenance stamps, so what it was built from is unknown"
+                    )
+                where = f"region {rank} field {index}"
+                if str(stored["nuclei_generated_at"]) != (nuclei_generated_at or ""):
+                    return None, f"step 13 built {where} from an earlier nuclei run"
+                if str(stored["typing_stamp"]) != (typing_stamp or ""):
+                    return None, f"step 13 built {where} from an earlier cell typing"
+                if (int(stored["field_x"]), int(stored["field_y"])) != (field_x, field_y):
+                    return None, f"step 13 built {where} at a different position on the slide"
+                stored_shell = float(stored["shell_um"])
+                wanted_shell = shell_um if shell_um is not None else -1.0
+                if abs(stored_shell - wanted_shell) > 1e-4:
+                    return None, (
+                        f"step 13 built {where} with a {stored_shell:g} um shell, not "
+                        f"{wanted_shell:g} um"
+                    )
+                stored_ids = set(np.unique(nucleus).tolist()) - {0}
+                if stored_ids != cell_ids:
+                    return None, (
+                        f"step 13's {where} holds {len(stored_ids)} cells and this step "
+                        f"is measuring {len(cell_ids)} - not the same cells"
                     )
                 return (
                     geometry.Compartments(
@@ -245,12 +282,28 @@ class PerCellService:
         needs to open a slide.
         """
         directory = self.artifact(he_upload_id, ihc_upload_id)
-        if not directory.is_dir():
+        report_path = directory / "report.json"
+        if not report_path.is_file():
             raise PerCellError(
                 "step 14 has not measured this pair yet, so there are no cells to score."
             )
+
+        # **Only the regions the current pass measured (P-15).** This used to glob every
+        # `region*/cells.json` in the directory, and a pass never removed the regions an
+        # earlier pass had written - so a re-run over fewer or renumbered regions left
+        # the old ones in place and they were read back as if current. CAN_00270 tile
+        # A/F carried 265 stale region folders that way, and `cells` came out 4,013
+        # where it should have been 932. The report is written last, by the pass that
+        # wrote these rows, so its list is the authority on which ones belong to it.
+        report = json.loads(report_path.read_text(encoding="utf-8"))
         out: list[dict] = []
-        for path in sorted(directory.glob("region*/cells.json")):
+        for region in report.get("regions", []):
+            path = directory / f"region{int(region['rank'])}" / "cells.json"
+            if not path.is_file():
+                raise PerCellError(
+                    f"step 14's report lists region {region['rank']} but its cells are not "
+                    "on disk. Re-run step 14 for this pair."
+                )
             payload = json.loads(path.read_text(encoding="utf-8"))
             out.extend(payload.get("cells", []))
         if not out:
@@ -332,6 +385,13 @@ class PerCellService:
                     "step 11 with `nuclei_macenko_per_slide` off."
                 )
 
+            # A clean directory per pass (P-15): the report and every region an earlier
+            # pass wrote go before this pass writes anything, so nothing it does not
+            # write itself can be read back as its result - and a pass that fails
+            # half-way leaves no report, which `rows` reads as "not measured" rather
+            # than as the previous answer.
+            self._clear(he_upload_id, ihc_upload_id)
+
             regions: list[RegionMeasurement] = []
             pooled: list[CellMeasurement] = []
             #: Fields where step 13's stored geometry was present but not usable, and
@@ -371,6 +431,16 @@ class PerCellService:
                         width_um=width,
                         is_membrane=is_membrane,
                         shape=(labels.shape[0], labels.shape[1]),
+                        shell_um=shell,
+                        nuclei_generated_at=nuclei_report.generated_at,
+                        typing_stamp=types_map.stamp(
+                            cell_typing_service.artifact(
+                                he_upload_id, ihc_upload_id, f"region{region.rank}", "types.json"
+                            )
+                        ),
+                        field_x=x,
+                        field_y=y,
+                        cell_ids=set(np.unique(labels).tolist()) - {0},
                     )
                     if built is None:
                         if rebuild_reason is not None:
@@ -525,6 +595,17 @@ class PerCellService:
         return report
 
     # --- storing ------------------------------------------------------------
+
+    def _clear(self, he_upload_id: str, ihc_upload_id: str) -> None:
+        """Remove the previous pass's report and region rows for this pair."""
+        import shutil
+
+        directory = self.artifact(he_upload_id, ihc_upload_id)
+        (directory / "report.json").unlink(missing_ok=True)
+        if directory.is_dir():
+            for stale in directory.glob("region*"):
+                if stale.is_dir():
+                    shutil.rmtree(stale)
 
     def _store_region(
         self,

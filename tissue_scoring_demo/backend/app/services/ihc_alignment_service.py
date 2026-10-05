@@ -192,21 +192,34 @@ class IhcAlignmentService:
         stored = payload.get("diagnostics") or {}
         kind = stored.get("registrationKind") or stored.get("registration_kind")
 
-        # A refusal is only as good as the rule that produced it. A *successful* report
-        # stays valid across gate changes - the transform it carries did not change - but
-        # a refusal has to be re-decided, or a corrected threshold can never take effect.
-        if payload.get("state") != "ready":
-            version = stored.get("gateVersion") or stored.get("gate_version") or 0
-            if version != self.GATE_VERSION:
-                logger.info(
-                    "re-deciding a stored refusal for %s -> %s: it was made by gate "
-                    "version %s and this is version %s",
-                    he_upload_id,
-                    ihc_upload_id,
-                    version,
-                    self.GATE_VERSION,
-                )
-                return None
+        # **Any report, ready or refused, is only as good as the rule and the transform
+        # that produced it (P-15).** Ready reports used to be exempt on the reasoning that
+        # their transform had not changed - but nothing checked that, and reports on disk
+        # carried gate versions None, 3 and 4 and some had no method at all. So both are
+        # checked on every read: the gate version, and a fingerprint of everything the
+        # warp reads (`transform_warp.fingerprint`). Either one moving is a miss.
+        version = stored.get("gateVersion") or stored.get("gate_version") or 0
+        if version != self.GATE_VERSION:
+            logger.info(
+                "re-deciding a stored %s alignment for %s -> %s: it was made by gate "
+                "version %s and this is version %s",
+                payload.get("state"),
+                he_upload_id,
+                ihc_upload_id,
+                version,
+                self.GATE_VERSION,
+            )
+            return None
+        recorded = stored.get("transformSha256") or stored.get("transform_sha256")
+        current = stored_transforms.fingerprint(he_upload_id, ihc_upload_id)
+        if recorded != current:
+            logger.info(
+                "re-deciding a stored alignment for %s -> %s: the stored transform has "
+                "changed since it was made",
+                he_upload_id,
+                ihc_upload_id,
+            )
+            return None
         if kind != self.REGISTRATION_KIND:
             logger.info(
                 "discarding a stored alignment for %s -> %s: it was produced by '%s' and "
@@ -369,6 +382,8 @@ class IhcAlignmentService:
             # those would be passing it on absent evidence.
             "registration_kind": "intensity",
             "gate_version": self.GATE_VERSION,
+            # What the warp read, so a refit transform invalidates this report.
+            "transform_sha256": stored_transforms.fingerprint(he_upload_id, ihc_upload_id),
             "method": warped.get("method"),
             "alignment_nmi": warped.get("nmi"),
             "round_trip_median_um": warped.get("round_trip_median_um"),

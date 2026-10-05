@@ -37,9 +37,13 @@ class AlignmentDiagnostics(APIModel):
     #: silently absent from the stored JSON - which is exactly how the cache guard that
     #: reads this ended up discarding every report it was meant to accept.
     registration_kind: str | None = None
-    #: Which set of gate rules decided this report. A refusal made by an older version is
-    #: re-decided rather than reused; a success is kept, because its transform is unchanged.
+    #: Which set of gate rules decided this report. Any report made by an older version,
+    #: ready or refused, is re-decided rather than reused (P-15).
     gate_version: int | None = None
+    #: `transform_warp.fingerprint` of what the warp read - the transform file, the
+    #: placement matrices and the working scale. A report whose stored transform has
+    #: since changed is re-decided. Null where no transform was stored.
+    transform_sha256: str | None = None
     #: Which rule measured the tissue areas: `optical_density`, or the older saturation
     #: mask when no render exists for the case.
     tissue_area_source: str | None = None

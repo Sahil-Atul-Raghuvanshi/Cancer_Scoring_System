@@ -67,3 +67,19 @@ def typed_count(path: Path) -> int:
 
 
 __all__ = ["TUMOUR", "TypesUnavailableError", "tumour_ids", "typed_count"]
+
+
+def stamp(path: Path) -> str | None:
+    """A fingerprint of one region's typing, or None when there is none.
+
+    The content, not the file's time: steps 15 and 16 both compute it from the same
+    bytes, so the geometry step 15 stored can be checked against the typing step 16 is
+    about to use (P-15). A re-typed region changes the bytes and therefore the stamp,
+    and a geometry built for the old typing is then rebuilt rather than measured.
+    """
+    import hashlib
+
+    try:
+        return hashlib.sha1(path.read_bytes()).hexdigest()  # noqa: S324 - identity, not security
+    except OSError:
+        return None

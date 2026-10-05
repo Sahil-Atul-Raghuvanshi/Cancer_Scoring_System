@@ -160,6 +160,44 @@ class StoredWarper:
         return payload
 
 
+def fingerprint(he_upload_id: str, ihc_upload_id: str) -> str | None:
+    """A hash of everything the warp for this pair reads, or None if nothing is stored.
+
+    The transform file alone is not enough: the warp also places both slides through
+    `aligned.json`'s level-0-to-aligned matrices and the working scale, and a change to
+    either moves every carried ring as surely as a refitted transform does. Step 12
+    stores this beside its report and treats a mismatch as a miss (P-15), so a pair
+    refitted by `fit_best.py` cannot keep serving regions carried by the old fit.
+    """
+    import hashlib
+
+    try:
+        case, marker = _case_for(he_upload_id, ihc_upload_id)
+        warper = StoredWarper(case)
+    except NoStoredTransform:
+        return None
+    saved = (warper.manifest.get("saved") or {}).get(marker) or {}
+    slides = warper.aligned.get("slides") or {}
+    if not saved.get("ok") or not saved.get("file"):
+        return None
+    transform = warper.directory / "transforms" / saved["file"]
+    try:
+        content = transform.read_bytes()
+    except OSError:
+        return None
+    digest = hashlib.sha256(content)
+    digest.update(json.dumps(
+        {
+            "method": saved.get("method"),
+            "work_scale": warper.work_scale,
+            "he": (slides.get("HE") or {}).get("level0ToAligned"),
+            "ihc": (slides.get(marker) or {}).get("level0ToAligned"),
+        },
+        sort_keys=True,
+    ).encode("utf-8"))
+    return digest.hexdigest()
+
+
 def warp_for_pair(he_upload_id: str, ihc_upload_id: str, rings) -> dict:
     """The entry point step 12 uses: a pair of upload ids in, warped rings out."""
     case, marker = _case_for(he_upload_id, ihc_upload_id)

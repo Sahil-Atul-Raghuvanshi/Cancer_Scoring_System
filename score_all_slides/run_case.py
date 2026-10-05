@@ -53,7 +53,8 @@ def _score_fields(he_upload_id: str, ihc_upload_id: str) -> dict:
     """
     from app.services.score_service import score_service
 
-    score = score_service.report(he_upload_id, ihc_upload_id).score
+    report = score_service.report(he_upload_id, ihc_upload_id)
+    score = report.score
     return {
         "percent": score.percent,
         "intensity": score.intensity,
@@ -74,6 +75,9 @@ def _score_fields(he_upload_id: str, ihc_upload_id: str) -> dict:
         "percent_plain_mean": round(score.percent_plain_mean, 4),
         "cuts_provisional": score.cuts_provisional,
         "caveats": list(score.caveats),
+        # What the score was made with (P-15). `run_all.py` compares this against the
+        # current code, settings and cut file before it trusts a `done` case.
+        "provenance": report.provenance,
     }
 
 

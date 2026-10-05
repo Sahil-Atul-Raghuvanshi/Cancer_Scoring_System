@@ -1884,6 +1884,11 @@ def test_step_8_runs_at_step_7s_overlap_rather_than_its_own_setting(monkeypatch)
         lambda upload_id, **_: SimpleNamespace(key="unit-mask"),
     )
     monkeypatch.setattr(
+        service_module.calibration_service,
+        "white_point",
+        lambda upload_id, **_: SimpleNamespace(key="unit-white"),
+    )
+    monkeypatch.setattr(
         service_module.tiling_service,
         "report",
         # `**_` because `resolve_params` now asks for the committed grid by name -
@@ -1894,6 +1899,7 @@ def test_step_8_runs_at_step_7s_overlap_rather_than_its_own_setting(monkeypatch)
             params=SimpleNamespace(
                 overlap=0.0, tissue_threshold=1, tissue_threshold_source="otsu",
                 qc_gated=False, qc_source=None,
+                min_tissue_share=0.5, min_clean_share=0.5,
                 # Step 7 also names the checkpoint now - it is the head fitted at the
                 # field of view that screen chose - so the stub carries one. The
                 # inheritance being pinned here is still the overlap's.
@@ -2151,12 +2157,18 @@ def test_step_8_refuses_when_step_7s_field_of_view_has_no_head(monkeypatch):
         lambda upload_id, **_: SimpleNamespace(key="unit-mask"),
     )
     monkeypatch.setattr(
+        service_module.calibration_service,
+        "white_point",
+        lambda upload_id, **_: SimpleNamespace(key="unit-white"),
+    )
+    monkeypatch.setattr(
         service_module.tiling_service,
         "report",
         lambda upload_id, **_: SimpleNamespace(
             params=SimpleNamespace(
                 overlap=0.0, tissue_threshold=1, tissue_threshold_source="otsu",
                 qc_gated=False, qc_source=None,
+                min_tissue_share=0.5, min_clean_share=0.5,
                 field_of_view_um=448.0, model=None,
                 branch="h_channel", input_channel=None,
             )

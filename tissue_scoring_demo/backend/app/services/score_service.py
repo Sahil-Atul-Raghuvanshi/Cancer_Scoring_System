@@ -33,6 +33,7 @@ from app.schemas.scores import (
     RegionScoreOut,
     ScoreReport,
 )
+from app.core import provenance
 from app.scoring import cuts as cut_points
 from app.services.ihc_alignment_service import ihc_alignment_service
 from app.services.nuclei_service import NucleiError, nuclei_service
@@ -142,6 +143,7 @@ class ScoreService:
             measured_at=measured.generated_at,
             score=out,
             notes=self._notes(),
+            provenance=provenance.for_pair(he_upload_id, ihc_upload_id),
         )
 
         path = self.artifact(he_upload_id, ihc_upload_id, "report.json")

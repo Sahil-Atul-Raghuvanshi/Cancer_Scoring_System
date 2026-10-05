@@ -106,6 +106,11 @@ class CompartmentService:
         width_um: float,
         is_membrane: bool,
         tumour_only: bool,
+        shell_um: float | None,
+        nuclei_generated_at: str | None,
+        typing_stamp: str | None,
+        field_x: int,
+        field_y: int,
     ) -> None:
         """Persist one field's compartments so step 14 measures what this step drew.
 
@@ -122,6 +127,12 @@ class CompartmentService:
         reader has to be able to tell whether the geometry on disk is the marker's
         own or an exploration - see `PerCellService._stored_geometry`, which refuses
         the second kind rather than quietly measuring it.
+
+        **And what it was built from (P-15).** Width, kind and shape were all the reader
+        could check, so a field whose nuclei had been re-segmented or whose cells had
+        been re-typed since was measured with the old cells. The nuclei run, the typing,
+        the field's position and the shell thickness are now stored beside the arrays,
+        and the reader refuses a geometry that disagrees with any of them.
         """
         path = self.artifact(
             he_upload_id, ihc_upload_id, f"region{rank}", f"f{index}_geometry.npz"
@@ -136,20 +147,30 @@ class CompartmentService:
             width_um=np.float32(width_um),
             is_membrane=np.bool_(is_membrane),
             tumour_only=np.bool_(tumour_only),
+            shell_um=np.float32(shell_um if shell_um is not None else -1.0),
+            nuclei_generated_at=np.array(nuclei_generated_at or ""),
+            typing_stamp=np.array(typing_stamp or ""),
+            field_x=np.int64(field_x),
+            field_y=np.int64(field_y),
         )
 
     # --- reading what step 11 stored ---------------------------------------
 
     def _field_labels(
         self, he_upload_id: str, ihc_upload_id: str, rank: int, index: int
-    ) -> tuple[np.ndarray, float] | None:
+    ) -> tuple[np.ndarray, float, int, int] | None:
         path = nuclei_service.artifact(
             he_upload_id, ihc_upload_id, f"region{rank}", f"f{index}_labels.npz"
         )
         if not path.is_file():
             return None
         with np.load(path) as stored:
-            return stored["labels"].astype(np.int32), float(stored["mpp"])
+            return (
+                stored["labels"].astype(np.int32),
+                float(stored["mpp"]),
+                int(stored["x"]),
+                int(stored["y"]),
+            )
 
     @staticmethod
     def _restrict(labels: np.ndarray, keep: set[int]) -> np.ndarray:
@@ -382,7 +403,7 @@ class CompartmentService:
                 )
                 if loaded is None:
                     continue
-                labels, mpp = loaded
+                labels, mpp, field_x, field_y = loaded
                 if tumour_only:
                     keep = self._tumour_ids(
                         he_upload_id, ihc_upload_id, region.rank, field.index
@@ -453,6 +474,13 @@ class CompartmentService:
                     width_um=width,
                     is_membrane=is_membrane,
                     tumour_only=tumour_only,
+                    shell_um=shell,
+                    nuclei_generated_at=nuclei_report.generated_at,
+                    typing_stamp=types_map.stamp(
+                        self._types_path(he_upload_id, ihc_upload_id, region.rank)
+                    ),
+                    field_x=field_x,
+                    field_y=field_y,
                 )
 
                 # Both bands of every cell, as outlines in the slide's own

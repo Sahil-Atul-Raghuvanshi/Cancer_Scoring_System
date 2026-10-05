@@ -331,6 +331,28 @@ def main() -> int:
     return 0
 
 
+def _stale(case_id: str) -> str:
+    """What differs between this case's scored markers and the current code, or ''.
+
+    Only the pair-independent half of the stamp is compared here: a scored case is filed
+    into history straight after scoring, so the pair-level fields - which read the live
+    step 8 report and the stored transform - are not reachable from this process. The
+    pair-level fields are still recorded on every row, so a reader can check them.
+    """
+    sys.path.insert(0, str(pipeline.BACKEND))
+    from app.core import provenance
+
+    current = provenance.code_state()
+    differ: set[str] = set()
+    for record in pipeline.load_results():
+        if record.get("caseId") != case_id:
+            continue
+        for marker in record.get("markers", []):
+            if marker.get("state") == "scored":
+                differ.update(provenance.stale_fields(marker.get("provenance"), current))
+    return ", ".join(sorted(differ))
+
+
 def _scored_total() -> int:
     """Markers scored across every case on disk. Used to tell a round apart from a loop."""
     return sum(
@@ -349,9 +371,15 @@ def _sweep(state, wanted, redo, args, began, log) -> bool:
         if case_id in redo:
             slot["state"] = "pending"
             slot["attempts"] = 0
-        elif slot["state"] == "done":
+        elif slot["state"] == "done" and not (stale := _stale(case_id)):
             pipeline.say(f"{case_id}: already done, skipping", log)
             continue
+        elif slot["state"] == "done":
+            # `done` was permanent (P-15): a case scored before a change to the code, the
+            # settings or the cut file kept its old numbers through every later pass.
+            pipeline.say(f"{case_id}: done, but scored with a different {stale} - re-running", log)
+            slot["state"] = "pending"
+            slot["attempts"] = 0
         elif slot["attempts"] >= args.attempts and slot["state"] != "pending":
             pipeline.say(
                 f"{case_id}: {slot['attempts']} attempts already, skipping "

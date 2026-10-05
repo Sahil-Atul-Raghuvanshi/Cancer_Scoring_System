@@ -118,6 +118,9 @@ class ScoreReport(APIModel):
 
     score: MarkerScoreOut
     notes: list[str] = Field(default_factory=list)
+    #: What this score was made with - see `app.core.provenance` (P-15). Null on a report
+    #: written before stamping existed.
+    provenance: dict | None = None
 
 
 class CaseScoreRow(APIModel):

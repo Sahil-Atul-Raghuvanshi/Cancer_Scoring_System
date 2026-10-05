@@ -552,6 +552,11 @@ class TissueTypeService:
             "tissue_mask_key": tissue_service.footprint(
                 upload_id, threshold=report.params.tissue_threshold
             ).key,
+            # Step 7's two gates (P-15). Its grid's overlap and threshold were already in
+            # the key; the shares that decide which tiles are kept were not, so tightening
+            # either served the class map of the old, larger set of tiles.
+            "tile_min_tissue_share": report.params.min_tissue_share,
+            "tile_min_clean_share": report.params.min_clean_share,
             "block_windows": settings.tissue_type_block_windows,
             "device": capability.device,
             # The uncertainty layer's own settings. Resolved here, with everything else
@@ -663,6 +668,13 @@ class TissueTypeService:
             # Which windows the model is allowed to answer for - see `familiarity`.
             # In the key, because a changed cut changes which windows have a class.
             "familiarity": self._gate(pinned).signature,
+            # Step 4's white point, by identity (P-15). The trained branches' input is
+            # optical density, which is a division by this - so a recalibrated slide
+            # is different input and a different class map. Not on the BEETLE option,
+            # whose input is the photograph and never sees a white point.
+            "white_key": calibration_service.white_point(
+                upload_id, threshold=report.params.tissue_threshold
+            ).key,
         }
 
     @staticmethod
@@ -712,6 +724,9 @@ class TissueTypeService:
                 "qc_gated",
                 "qc_source",
                 "tissue_mask_key",
+                "tile_min_tissue_share",
+                "tile_min_clean_share",
+                "white_key",
                 "familiarity",
                 # The BEETLE option's own inputs. Every one of them changes the mask:
                 # `folds` changes what is averaged, `patch_step` changed a checkerboard

@@ -285,6 +285,18 @@ def load_results() -> list[dict]:
     return records
 
 
+#: Provenance fields carried into the CSV. Kept as their own tuple so the row builder
+#: reads them out of the nested record rather than off the marker's top level.
+PROVENANCE_COLUMNS = (
+    "code_commit",
+    "code_dirty",
+    "config_sha256",
+    "cuts_version",
+    "tissue_type_model",
+    "tissue_type_model_sha256",
+    "transform_sha256",
+)
+
 #: The CSV's columns, in order. `percent` and `intensity` come first after the
 #: identifiers because they are the deliverable - the two numbers OncoStem's readers
 #: give - and everything after them is the working that produced them.
@@ -317,6 +329,9 @@ COLUMNS = (
     "seconds",
     "scored_at",
     "error",
+    # What the row was made with (P-15), flattened out of each marker's `provenance`.
+    # Last, because they are the audit trail rather than the result.
+    *PROVENANCE_COLUMNS,
 )
 
 
@@ -334,6 +349,10 @@ def write_csv() -> pathlib.Path:
         case_id = record.get("caseId", "")
         for marker in record.get("markers", []):
             row = {column: marker.get(column, "") for column in COLUMNS}
+            stamp = marker.get("provenance") or {}
+            for column in PROVENANCE_COLUMNS:
+                value = stamp.get(column)
+                row[column] = "" if value is None else value
             row["case_id"] = case_id
             caveats = marker.get("caveats") or []
             row["caveats"] = " | ".join(caveats) if isinstance(caveats, list) else caveats
