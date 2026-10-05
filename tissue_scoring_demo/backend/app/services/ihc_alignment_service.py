@@ -621,6 +621,11 @@ class IhcAlignmentService:
         from app.services.tissue_service import tissue_service
 
         areas: dict[str, Any] = {}
+        #: Why each preferred measurement was not used (P-17). Every fallback below used to
+        #: swallow its exception, so a gate decided on step 3's saturation rule - the one
+        #: this docstring explains is wrong by up to five times - looked identical to one
+        #: decided on the shared optical-density cut. The reasons travel on the report.
+        fallbacks: list[str] = []
 
         # Step 3's figures, kept for comparison rather than for the test.
         try:
@@ -632,8 +637,9 @@ class IhcAlignmentService:
                 )
         except Exception as exc:  # noqa: BLE001 - one of four gates
             logger.warning("could not measure saturation tissue area: %s", exc)
+            fallbacks.append(f"step 3's saturation areas: {type(exc).__name__}: {exc}")
 
-        density = self._density_areas(he_upload_id, ihc_upload_id)
+        density = self._density_areas(he_upload_id, ihc_upload_id, fallbacks)
         if density:
             areas.update(density)
         else:
@@ -644,9 +650,15 @@ class IhcAlignmentService:
                 areas["he_tissue_mm2"], areas["ihc_tissue_mm2"] = he, ihc
                 areas["tissue_area_ratio"] = round(ihc / he, 3)
                 areas["tissue_area_source"] = "step3_saturation_fallback"
+            else:
+                fallbacks.append("no tissue area could be measured, so the ratio test did not run")
+        if fallbacks:
+            areas["tissue_area_fallbacks"] = fallbacks
         return areas
 
-    def _density_areas(self, he_upload_id: str, ihc_upload_id: str) -> dict[str, Any]:
+    def _density_areas(
+        self, he_upload_id: str, ihc_upload_id: str, fallbacks: list[str] | None = None
+    ) -> dict[str, Any]:
         """Optical-density tissue areas for this pair, measured with **one cut per case**.
 
         `gate_areas.json` measures every section of a block at the threshold the H&E chose,
@@ -666,12 +678,15 @@ class IhcAlignmentService:
         the ratio equally, which is the only property the ratio needs.
 
         Falls back to the per-slide render figures, then to step 3, so a case measured by
-        neither still gets a check rather than none.
+        neither still gets a check rather than none. Each fall-through says why in
+        `fallbacks` (P-17) - a weaker measurement is acceptable, an unannounced one is not.
         """
+        fallbacks = fallbacks if fallbacks is not None else []
         case = marker = None
         try:
             case, marker = stored_transforms._case_for(he_upload_id, ihc_upload_id)
-        except Exception:  # noqa: BLE001 - an unknown pair has no case-level measurement
+        except Exception as exc:  # noqa: BLE001 - an unknown pair has no case-level measurement
+            fallbacks.append(f"no case record for this pair ({exc})")
             return {}
 
         directory = stored_transforms.common.case_dir(case)
@@ -688,8 +703,8 @@ class IhcAlignmentService:
                     "tissue_area_ratio": round(ihc_mm2 / he_mm2, 3),
                     "tissue_area_source": f"optical_density_shared_cut_{payload.get('cut')}",
                 }
-        except Exception:  # noqa: BLE001 - fall through to the render figures
-            pass
+        except Exception as exc:  # noqa: BLE001 - fall through to the render figures
+            fallbacks.append(f"the shared-cut areas (gate_areas.json): {type(exc).__name__}: {exc}")
 
         # Fallback: the render's per-slide figures. Worse for a ratio, better than nothing.
         try:
@@ -697,9 +712,11 @@ class IhcAlignmentService:
             slides = manifest["slides"]
             he_mm2 = float(slides["HE"]["tissueMm2"])
             ihc_mm2 = float(slides[marker]["tissueMm2"])
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            fallbacks.append(f"the render's per-slide areas (render.json): {type(exc).__name__}: {exc}")
             return {}
         if not he_mm2:
+            fallbacks.append("the render recorded no H&E tissue area")
             return {}
         return {
             "he_tissue_mm2": round(he_mm2, 2),

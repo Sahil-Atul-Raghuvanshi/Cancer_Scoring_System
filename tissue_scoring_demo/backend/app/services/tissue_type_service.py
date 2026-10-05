@@ -159,6 +159,16 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+#: In-situ share at or above which step 8 asks for a look (P-17). The measured failure
+#: called 45.9% of CAN_00251 in-situ; 0.30 flags that with room to spare, and is a prompt
+#: for a person rather than a refusal - a case can genuinely be mostly DCIS.
+IN_SITU_FLAG_SHARE = 0.30
+
+#: Share of the run that came back "cannot be determined" - flagged or refused - at or
+#: above which the report says so up front (P-17).
+UNDETERMINED_FLAG_SHARE = 0.10
+
+
 def _uncertainty_params() -> UncertaintyParams:
     """The uncertainty layer's settings, as the dataclass the layer takes.
 
@@ -2371,6 +2381,26 @@ class TissueTypeService:
                 )
             )
 
+        # **Absent evidence is said, not skipped (P-17).** This caveat read the per-source
+        # breakdown and stayed silent when it was missing - and every served manifest
+        # lacks it, so it never fired. The breakdown cannot be invented here; that it is
+        # missing is itself the fact a reader needs.
+        if not by_source:
+            caveats.append(
+                TissueTypeCaveat(
+                    key="in_situ_ground_truth",
+                    severity="warning",
+                    headline="How well 'tumour inside a duct' was tested is not recorded",
+                    detail=(
+                        "This model's record does not say how many of its test tiles for "
+                        "'tumour inside a duct' were drawn by a pathologist rather than "
+                        "labelled by another model. The line between that class and "
+                        "invasive tumour is the one the score depends on, and there is no "
+                        "figure here for how far to trust it."
+                    ),
+                )
+            )
+
         human_tiles = (bcss.get("class_tiles") or {}).get("non_invasive_epithelium")
         if isinstance(human_tiles, int) and human_tiles < 100:
             caveats.append(
@@ -2406,20 +2436,64 @@ class TissueTypeService:
                 )
             )
 
+        # The pipeline runs this step on the case's H&E, so the old "running on a marker
+        # slide" caveat was wrong on every slide it was shown on (P-17). The real gap is
+        # the laboratory: the training slides are other labs' (P-12).
         caveats.append(
             TissueTypeCaveat(
                 key="domain",
                 severity="warning",
-                headline="Trained on H&E slides, but running on a marker slide",
+                headline="Trained on other laboratories' slides, never tested on this one's",
                 detail=(
-                    "The model was trained on H&E slides; this one is a marker slide. "
-                    "The brown is removed so that only the blue is read, but the blue "
-                    "still looks different between the two kinds of slide. Nobody has "
-                    "labelled a marker slide for this project, so there is no test "
-                    "result to say how much that matters."
+                    "The model learned from public H&E collections (BCSS, BRACS, BACH), "
+                    "scanned and stained elsewhere. No slide from this laboratory has been "
+                    "labelled for it, so how well it carries over has not been measured."
                 ),
             )
         )
+
+        # **The two signatures of the failure that was actually measured (P-17).** The
+        # confidence caveat below fires under 0.6, but CAN_00251's false in-situ field -
+        # 45.9% of the section - came back at 0.809 confidence, so confidence alone never
+        # flagged it. What it did show was a large in-situ share. The bar is a flag for a
+        # person, not a verdict: a case can genuinely be mostly DCIS.
+        in_situ = class_map.shares[1]
+        if in_situ >= IN_SITU_FLAG_SHARE:
+            caveats.append(
+                TissueTypeCaveat(
+                    key="in_situ_share",
+                    severity="warning",
+                    headline=f"{in_situ:.0%} of the tissue was called 'tumour inside a duct'",
+                    detail=(
+                        "That is the pattern of the one large failure measured on this "
+                        "model: a slide where 46% was called 'inside a duct', confidently "
+                        "and wrongly. It can be real, but it is worth a look at the map - "
+                        "every patch in this class is left out of the score."
+                    ),
+                )
+            )
+
+        unknown = class_map.uncertainty.unknown_windows if class_map.uncertainty else 0
+        refused = class_map.refused_count(familiarity.FLAT) + class_map.refused_count(
+            familiarity.UNFAMILIAR
+        )
+        ran = class_map.classified + refused
+        purple = (unknown + refused) / ran if ran else 0.0
+        if purple >= UNDETERMINED_FLAG_SHARE:
+            caveats.append(
+                TissueTypeCaveat(
+                    key="undetermined_share",
+                    severity="warning",
+                    headline=f"{purple:.0%} of the tissue could not be determined",
+                    detail=(
+                        "These patches are drawn purple: the model's answer was not used, "
+                        "either because it did not hold up against its surroundings or "
+                        "because the patch looked unlike anything it was trained on. They "
+                        "are left out of the score, so a large share of them is tissue the "
+                        "score says nothing about."
+                    ),
+                )
+            )
 
         if class_map.mean_confidence < 0.6:
             caveats.append(

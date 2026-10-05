@@ -135,6 +135,7 @@ class ScoreService:
             cuts_provisional=result.cuts_provisional,
             caveats=self._caveats(he_upload_id, ihc_upload_id, result, measured),
         )
+        out.status, out.status_reasons = self._status(out.caveats)
 
         report = ScoreReport(
             he_upload_id=he_upload_id,
@@ -370,11 +371,10 @@ class ScoreService:
 
         if result.cuts_provisional:
             caveats.append(
-                "PROVISIONAL CUT POINTS. They have not been fitted against the 120 "
-                "pathologist readings, because that sheet is not on disk. The percentage "
-                "and the intensity both move with these numbers, so treat the pair as a "
-                "demonstration that the pipeline computes the contract, not as a "
-                "measurement to act on."
+                "PROVISIONAL CUT POINTS. They have not yet been fitted against the "
+                "pathologists' readings (P-01). The percentage and the intensity both "
+                "move with these numbers, so treat the pair as a demonstration that the "
+                "pipeline computes the contract, not as a measurement to act on."
             )
 
         try:
@@ -392,8 +392,11 @@ class ScoreService:
                     "segmentation failure rather than biology - under heavy DAB the "
                     "counterstain is too weak for nuclear boundaries to survive "
                     "deconvolution. Every nucleus missed is a cell out of the "
-                    "denominator, and missed cells are disproportionately the strongly "
-                    "stained ones, so this inflates the percentage."
+                    "denominator, and which way that moves the percentage has not been "
+                    "measured: if the missed cells are mostly the strongly stained ones "
+                    "it rises, if they are mostly unstained it falls. Read the "
+                    "percentage as resting on the cells that were found, not on the "
+                    "tissue."
                 )
 
         try:
@@ -417,14 +420,14 @@ class ScoreService:
 
             if not alignment.confirmed:
                 caveats.append(
-                    "ALIGNMENT NOT CONFIRMED BY A PERSON. Step 10 refuses to approve its "
+                    "ALIGNMENT NOT CONFIRMED BY A PERSON. Step 12 refuses to approve its "
                     "own registration; somebody is meant to look at the two panels and "
                     "say the regions landed on the same tissue. These cells were measured "
                     "inside regions that check has not passed."
                 )
             elif getattr(alignment, "confirmed_by", None) == "machine":
                 caveats.append(
-                    "ALIGNMENT MACHINE-CONFIRMED. The batch run confirmed step 10 "
+                    "ALIGNMENT MACHINE-CONFIRMED. The batch run confirmed step 12 "
                     "programmatically so it could proceed unattended. No person has "
                     "looked at the two panels."
                 )
@@ -436,11 +439,51 @@ class ScoreService:
                 caveats.append(
                     "ALIGNMENT CONFIRMED, BY WHOM UNRECORDED. This pair was signed off "
                     "before the confirmation started recording whether a person or a "
-                    "batch run did it. Re-confirm it on step 10 to put a person's "
+                    "batch run did it. Re-confirm it on step 12 to put a person's "
                     "judgement on the record."
                 )
-        except Exception:  # noqa: BLE001 - a missing alignment is reported by earlier steps
-            pass
+        except Exception as exc:  # noqa: BLE001 - reported below, never swallowed
+            # **An unreadable alignment is unknown, not clean (P-17).** This used to be
+            # `pass`, so the gate-override and machine-confirmed caveats above simply
+            # did not appear and the row read as though the alignment had been checked
+            # and passed. Not knowing is now a caveat of its own, and `_status` treats it
+            # as the failed gate it might be.
+            caveats.append(
+                f"ALIGNMENT STATUS UNKNOWN. Step 12's report for this pair could not be "
+                f"read ({type(exc).__name__}: {exc}), so whether the regions were carried "
+                "onto the right tissue, and whether anyone checked, cannot be stated. "
+                "Every figure below rests on an alignment nobody can vouch for."
+            )
+        else:
+            fallbacks = list(getattr(alignment.diagnostics, "tissue_area_fallbacks", []) or [])
+            if fallbacks:
+                caveats.append(
+                    "ALIGNMENT GATE MEASURED ON A FALLBACK. The tissue-area test that "
+                    "guards the registration did not use the shared optical-density "
+                    "measurement: " + "; ".join(fallbacks) + ". The weaker measurement "
+                    "is the one that misread CAN_00865's H&E at five times its area."
+                )
+
+        # **Step 14's own verdict on its cell typing, which nothing used to read (P-17).**
+        # The typing marks itself untrustworthy when the nuclei it sorted are not ones it
+        # can tell apart - and every score is computed over the cells it called tumour.
+        typing = self._typing_verdict(he_upload_id, ihc_upload_id)
+        if typing is not None and not typing[0]:
+            caveats.append(
+                "CELL TYPING FAILED ITS OWN CHECK. Step 14 marked the tumour/non-tumour "
+                f"sorting for this pair untrustworthy ({typing[1] or 'no reason recorded'}). "
+                "Every percentage here is counted over the cells it called tumour, so "
+                "the denominator itself is in question."
+            )
+
+        # Who chose the regions. Step 10 is a human gate; the batch run takes its
+        # default rule (P-17), and a reader comparing against pathologists should know.
+        if self._regions_chosen_by_machine(he_upload_id):
+            caveats.append(
+                "REGIONS CHOSEN BY THE DEFAULT RULE. Step 10 is meant to have a person "
+                "pick which regions are scored; on this pair nobody did, and the default "
+                "rule's choice was used."
+            )
 
         if measured.crowded_cells:
             share = measured.crowded_cells / max(1, measured.cells)
@@ -486,6 +529,67 @@ class ScoreService:
             )
 
         return caveats
+
+    #: Caveat headings that make the numbers carry no information (P-17). The review's
+    #: rule: refuse when unsure, and never let a failure make a row look cleaner.
+    NOT_A_MEASUREMENT = (
+        "NOT A MEASUREMENT.",
+        "ALIGNMENT FAILED ITS OWN CHECK",
+        "ALIGNMENT STATUS UNKNOWN.",
+        "CELL TYPING FAILED ITS OWN CHECK.",
+    )
+    #: Headings that leave the numbers usable but unchecked or uncalibrated.
+    PROVISIONAL = (
+        "PROVISIONAL CUT POINTS.",
+        "ALIGNMENT NOT CONFIRMED BY A PERSON.",
+        "ALIGNMENT MACHINE-CONFIRMED.",
+        "ALIGNMENT CONFIRMED, BY WHOM UNRECORDED.",
+        "ALIGNMENT GATE MEASURED ON A FALLBACK.",
+        "REGIONS CHOSEN BY THE DEFAULT RULE.",
+        "THIN DENOMINATOR.",
+        "DENOMINATOR INCOMPLETE.",
+    )
+
+    @classmethod
+    def _status(cls, caveats: list[str]) -> tuple[str, list[str]]:
+        """`measured`, `provisional` or `not_a_measurement`, and the headings that decided it.
+
+        Read off the caveats rather than recomputed, so the status and the text a person
+        reads cannot disagree: a condition that changes the status always appears as a
+        caveat, under the heading that changed it.
+        """
+        def heading(text: str) -> str:
+            return text.split(".")[0].strip() + "."
+
+        hard = [heading(c) for c in caveats if c.startswith(cls.NOT_A_MEASUREMENT)]
+        if hard:
+            return "not_a_measurement", hard
+        soft = [heading(c) for c in caveats if c.startswith(cls.PROVISIONAL)]
+        if soft:
+            return "provisional", soft
+        return "measured", []
+
+    @staticmethod
+    def _typing_verdict(he_upload_id: str, ihc_upload_id: str) -> tuple[bool, str | None] | None:
+        """Step 14's stored trust verdict, or None when it has not run."""
+        from app.services.cell_typing_service import cell_typing_service
+
+        path = cell_typing_service.artifact(he_upload_id, ihc_upload_id, "report.json")
+        try:
+            stored = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return bool(stored.get("trustworthy", True)), stored.get("trustReason")
+
+    @staticmethod
+    def _regions_chosen_by_machine(he_upload_id: str) -> bool:
+        """Whether step 10's regions were the default rule's rather than a person's."""
+        from app.services.roi_selection_service import RoiSelectionError, roi_selection_service
+
+        try:
+            return not roi_selection_service.report(he_upload_id).chosen_by_person
+        except (RoiSelectionError, OSError, ValueError):
+            return False
 
     @staticmethod
     def _notes() -> list[str]:

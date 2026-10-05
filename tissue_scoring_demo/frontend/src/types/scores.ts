@@ -77,7 +77,17 @@ export interface MarkerScore {
 
   /** What has to be known before these two numbers are used. */
   caveats: string[]
+
+  /**
+   * What the two numbers are: `measured`, `provisional` (a check a person should have
+   * made was not, or a calibration is unfitted) or `not_a_measurement`. Caveats explain;
+   * this decides. With the headings that decided it.
+   */
+  status?: ScoreStatus
+  statusReasons?: string[]
 }
+
+export type ScoreStatus = 'measured' | 'provisional' | 'not_a_measurement'
 
 export interface ScoreReport {
   heUploadId: string
@@ -86,6 +96,8 @@ export interface ScoreReport {
   measuredAt: string | null
   score: MarkerScore
   notes: string[]
+  /** What the score was made with (P-15). Null on a report from before stamping. */
+  provenance?: Record<string, unknown> | null
 }
 
 export interface CaseScoreRow {
@@ -97,6 +109,8 @@ export interface CaseScoreRow {
   cells: number
   state: string
   detail: string
+  /** The score's own status when scored; null otherwise. */
+  status?: ScoreStatus | null
 }
 
 export interface CaseScoreReport {

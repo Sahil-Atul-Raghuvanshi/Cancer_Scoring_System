@@ -126,6 +126,7 @@ class CaseScoreService:
                     cells=result.cells,
                     state="scored",
                     detail="; ".join(result.caveats),
+                    status=result.status,
                 )
             )
 

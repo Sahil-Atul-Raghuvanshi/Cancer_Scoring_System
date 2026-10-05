@@ -44,6 +44,9 @@ class AlignmentDiagnostics(APIModel):
     #: placement matrices and the working scale. A report whose stored transform has
     #: since changed is re-decided. Null where no transform was stored.
     transform_sha256: str | None = None
+    #: Why the gate's tissue areas did not come from the shared optical-density cut,
+    #: one entry per measurement that was skipped (P-17). Empty when nothing fell back.
+    tissue_area_fallbacks: list[str] = []
     #: Which rule measured the tissue areas: `optical_density`, or the older saturation
     #: mask when no render exists for the case.
     tissue_area_source: str | None = None

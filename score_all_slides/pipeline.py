@@ -305,6 +305,11 @@ COLUMNS = (
     "marker",
     "marker_name",
     "state",
+    # What the two numbers are (P-17): measured, provisional or not_a_measurement, and
+    # the caveat headings that decided it. Next to `percent` on purpose - a reader
+    # filters on this before reading the number beside it.
+    "status",
+    "status_reasons",
     "percent",
     "intensity",
     "intensity_label",
@@ -356,6 +361,9 @@ def write_csv() -> pathlib.Path:
             row["case_id"] = case_id
             caveats = marker.get("caveats") or []
             row["caveats"] = " | ".join(caveats) if isinstance(caveats, list) else caveats
+            reasons = marker.get("status_reasons") or []
+            row["status_reasons"] = " | ".join(reasons) if isinstance(reasons, list) else reasons
+            row["status"] = marker.get("status") or "unstamped"
             found[(case_id, str(marker.get("marker", "")))] = row
 
     # **Only the rows that carry a measurement.**

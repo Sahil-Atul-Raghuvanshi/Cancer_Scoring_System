@@ -107,6 +107,18 @@ class MarkerScoreOut(APIModel):
     #: point, a machine-confirmed alignment, a nuclei shortfall.
     caveats: list[str] = Field(default_factory=list)
 
+    #: What the two numbers are, in one machine-readable word (P-17):
+    #:   `measured`           nothing below undermines them;
+    #:   `provisional`        computed as designed, but a step a person should have
+    #:                        checked was not, or a calibration is not fitted yet;
+    #:   `not_a_measurement`  a condition under which the numbers carry no information -
+    #:                        too few cells, an alignment that failed its gate or cannot
+    #:                        be read, a cell typing that failed its own check.
+    #: Caveats explain; this decides. Before it, a row produced with every check skipped
+    #: read exactly like a fully checked one.
+    status: str = "provisional"
+    status_reasons: list[str] = Field(default_factory=list)
+
 
 class ScoreReport(APIModel):
     """Step 16's result for one (H&E, IHC) pair - that is, for one marker."""
@@ -134,6 +146,10 @@ class CaseScoreRow(APIModel):
     cells: int = 0
     state: str = "missing"
     detail: str = ""
+    #: The score's own status - `measured`, `provisional` or `not_a_measurement` - when
+    #: it was scored (P-17). `state` says whether a number exists; this says whether it
+    #: is one.
+    status: str | None = None
 
 
 class CaseScoreReport(APIModel):

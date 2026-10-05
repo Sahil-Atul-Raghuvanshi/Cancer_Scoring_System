@@ -76,6 +76,7 @@ def main() -> int:
                 "letter": letter,
                 "name": panel.spec(letter).name,
                 "our_percent": score["percent"],
+                "status": score.get("status") or "unstamped",
                 "their_percent": float(np.mean(percents)),
                 "percent_spread": max(percents) - min(percents),
                 "our_intensity": score["intensity"],
@@ -92,6 +93,17 @@ def main() -> int:
         return 1
 
     print(f"{args.case_id}: both numbers against the four readers' consensus")
+    # **Labelled, not left to be inferred (P-17).** A comparison against pathologists
+    # reads as a validation of the method; one whose rows no person checked is a
+    # validation of an unreviewed pipeline, and has to say so before any number.
+    unchecked = [row for row in rows if row["status"] != "measured"]
+    if unchecked:
+        print(
+            f"UNREVIEWED PIPELINE: {len(unchecked)} of {len(rows)} rows are not "
+            "measurements a person has checked ("
+            + ", ".join(f"{row['letter']} {row['status']}" for row in unchecked)
+            + "). Read the comparison below as the pipeline's, not the method's."
+        )
     print()
     print("PERCENT POSITIVE")
     print(
