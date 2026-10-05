@@ -185,8 +185,24 @@ def is_orphaned(name: str, known: set[str]) -> bool:
     A pair is reachable when **both** of its slides still have a record. Either
     one being gone means the result can never be served again, which is the same
     test the single-keyed directories get, applied to each half.
+
+    **Matched against the known ids, never split (P-19).** Upload ids come from
+    `token_urlsafe`, whose alphabet includes `_`, so an id can itself contain `__`
+    or end in `_` - and then `name.split("__")` cuts it in the wrong place.
+    Delivered pair CAN_00270 ABCC4 has the IHC id `TS95__IA99rrDpqK5GLRxQ`: split,
+    its pair directory is three parts, two of them unknown, and the sweep would
+    have deleted it on the next start. So every `__` in the name is tried as the
+    seam, and the name is reachable when any one of them divides it into two ids
+    that both have a record.
     """
-    return any(part not in known for part in name.split("__"))
+    if name in known:
+        return False
+    seam = name.find("__")
+    while seam != -1:
+        if name[:seam] in known and name[seam + 2 :] in known:
+            return False
+        seam = name.find("__", seam + 1)
+    return True
 
 
 @dataclass

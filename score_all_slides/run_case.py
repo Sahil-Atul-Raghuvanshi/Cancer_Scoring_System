@@ -158,8 +158,6 @@ def run(case_id: str) -> int:
     # to 9 - step 8 alone is tens of minutes - then run once for the case rather than
     # once per marker, which is the difference between a case taking an hour and five.
     shared_he: str | None = None
-    #: Consecutive markers whose registration refused. See the check inside the loop.
-    alignment_refusals = 0
 
     for letter in wanted:
         name = panel.spec(letter).full_name
@@ -169,27 +167,11 @@ def run(case_id: str) -> int:
         entry = {"marker": letter, "marker_name": name, "state": "pending", "error": ""}
         run_result = None
 
-        # Two consecutive registration refusals mean this H&E does not register, full
-        # stop. Measured, not assumed: across the four cases run so far every marker of
-        # CAN_00251 and CAN_00270 registered (67 to 3505 matched features) and every
-        # marker of CAN_00267 and CAN_00303 refused (0 to 5), with no case landing in
-        # between. The property belongs to the H&E, which all five markers share, so the
-        # third, fourth and fifth attempts are an hour each spent re-deriving an answer
-        # the first two already gave.
-        if alignment_refusals >= 2:
-            entry["state"] = "skipped"
-            entry["error"] = (
-                f"skipped: registration refused on the {alignment_refusals} markers "
-                "before this one, and all five share the H&E that is failing to "
-                "register. Re-run this case once step 12 is fixed."
-            )
-            pipeline.say(f"{letter}: skipped - this case's H&E does not register", log)
-            record["markers"].append(entry)
-            record["finishedAt"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            pipeline.save_result(case_id, record)
-            pipeline.write_csv()
-            continue
-
+        # Every marker is attempted. A rule here used to skip the rest of a case after two
+        # registration refusals, on the reasoning that the H&E all five share was the
+        # thing failing. That stopped being true when registration became per IHC slide:
+        # a refusal now belongs to one section, not to the case, so two pale sections
+        # would have dropped three markers that register (P-19).
         for attempt in (1, 2):
             try:
                 run_result = run_marker(
@@ -255,11 +237,6 @@ def run(case_id: str) -> int:
         else:
             entry["state"] = "failed"
             entry["error"] = "both attempts raised before producing a run record"
-
-        if entry["state"] == "alignment_refused":
-            alignment_refusals += 1
-        elif entry["state"] == "scored":
-            alignment_refusals = 0
 
         record["markers"].append(entry)
 

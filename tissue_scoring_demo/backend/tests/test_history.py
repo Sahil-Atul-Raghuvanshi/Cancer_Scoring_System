@@ -59,3 +59,118 @@ def test_a_manifest_written_before_the_renumber_still_reads_as_complete() -> Non
     assert history_service._state_from({history_service.LAST_PAIR_STEP: True}) == "complete"
     assert history_service._state_from({"13": True}) == "partial"
     assert history_service._state_from({}) == "not-started"
+
+
+# --- P-19: moving a marker, with real directories ------------------------------
+
+import json  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import pytest  # noqa: E402
+
+from app.core.config import settings  # noqa: E402
+
+_TREE_SETTINGS = (
+    "qc_dir", "tissue_dir", "calibration_dir", "tiling_dir", "tissue_type_dir", "roi_dir",
+    "roi_selection_dir", "roi_refinement_dir", "ihc_alignment_dir", "nuclei_dir",
+    "cell_typing_dir", "compartments_dir", "per_cell_dir", "binning_dir", "scores_dir",
+)
+
+
+@pytest.fixture
+def tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A live tree and a history tree of their own, so no real run can be moved."""
+    for attribute in ("slides_dir", *_TREE_SETTINGS):
+        directory = tmp_path / "demo" / attribute.removesuffix("_dir")
+        directory.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(settings, attribute, directory)
+    monkeypatch.setattr(settings, "data_dir", tmp_path / "demo")
+    monkeypatch.setattr(history_service, "HISTORY_ROOT", tmp_path / "history")
+    monkeypatch.setattr(history_service, "_ensure_thumbnail", lambda *_: None)
+    return tmp_path
+
+
+def _run(case_id: str, marker: str, he: str, ihc: str, *, scored: bool = True) -> None:
+    """Lay down what a finished marker leaves in the live tree, and register it."""
+    pair = f"{he}__{ihc}"
+    (settings.slides_dir / f"{he}.json").write_text("{}", encoding="utf-8")
+    (settings.slides_dir / f"{ihc}.json").write_text("{}", encoding="utf-8")
+    (settings.tissue_type_dir / he).mkdir(exist_ok=True)
+    (settings.tissue_type_dir / he / "report.json").write_text("{}", encoding="utf-8")
+    steps = ("ihc_alignment_dir", "scores_dir") if scored else ("ihc_alignment_dir",)
+    for attribute in steps:
+        directory = getattr(settings, attribute) / pair
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "report.json").write_text(json.dumps({"score": {}}), encoding="utf-8")
+    cases = settings.data_dir / "cases"
+    cases.mkdir(exist_ok=True)
+    (cases / f"{case_id}_{marker}.json").write_text(
+        json.dumps({"case_id": case_id, "marker": marker, "he_upload_id": he, "ihc_upload_id": ihc}),
+        encoding="utf-8",
+    )
+
+
+def test_a_marker_records_the_he_it_was_run_against(tree: Path):
+    _run("CASE", "A", "heOne", "ihcA")
+    history_service.refresh("CASE")
+    manifest = history_service.load_manifest("CASE")
+    assert manifest["markers"]["A"]["heUploadId"] == "heOne"
+
+
+def test_two_hes_in_one_case_each_file_and_open_their_own_work(tree: Path):
+    """The case-level id used to be assumed for every marker; the second H&E's pairs
+    were looked for under the first one's key, nothing moved, and the marker was still
+    recorded as filed."""
+    _run("CASE", "A", "heOne", "ihcA")
+    _run("CASE", "F", "heTwo", "ihcF")
+    history_service.refresh("CASE")
+
+    history_service.archive_marker("CASE", "A")
+    history_service.archive_marker("CASE", "F")
+
+    for he, ihc in (("heOne", "ihcA"), ("heTwo", "ihcF")):
+        assert not (settings.scores_dir / f"{he}__{ihc}").exists(), "left live"
+        assert not (settings.tissue_type_dir / he).exists(), "shared work left live"
+    filed = tree / "history" / "CASE"
+    assert (filed / "markers" / "F" / "scores" / "heTwo__ihcF").is_dir()
+    assert (filed / "shared" / "tissue_type" / "heTwo").is_dir()
+
+    history_service.open_marker("CASE", "F")
+    assert (settings.scores_dir / "heTwo__ihcF").is_dir()
+    assert (settings.tissue_type_dir / "heTwo").is_dir()
+    assert not (settings.tissue_type_dir / "heOne").exists(), "only F's H&E comes back"
+
+
+def test_shared_work_stays_while_another_marker_of_that_he_is_open(tree: Path):
+    _run("CASE", "A", "heOne", "ihcA")
+    _run("CASE", "F", "heOne", "ihcF")
+    history_service.refresh("CASE")
+
+    history_service.archive_marker("CASE", "A")
+    assert (settings.tissue_type_dir / "heOne").is_dir()
+    history_service.archive_marker("CASE", "F")
+    assert not (settings.tissue_type_dir / "heOne").exists()
+
+
+def test_filing_refuses_when_a_finished_step_is_missing_and_moves_nothing(tree: Path):
+    """`_move` used to return False on a missing source and the marker was still
+    recorded as `history` - a record pointing at nothing."""
+    _run("CASE", "A", "heOne", "ihcA")
+    history_service.refresh("CASE")
+    import shutil
+
+    shutil.rmtree(settings.scores_dir / "heOne__ihcA")  # the score the manifest says exists
+
+    with pytest.raises(history_service.HistoryError, match="Nothing was moved"):
+        history_service.archive_marker("CASE", "A")
+
+    assert history_service.load_manifest("CASE")["markers"]["A"]["location"] == "demo"
+    assert (settings.ihc_alignment_dir / "heOne__ihcA").is_dir(), "a partial move happened"
+
+
+def test_a_partial_run_still_files(tree: Path):
+    """A marker that never reached the score has no score directory, and that is fine."""
+    _run("CASE", "A", "heOne", "ihcA", scored=False)
+    history_service.refresh("CASE")
+    history_service.archive_marker("CASE", "A")
+    assert history_service.load_manifest("CASE")["markers"]["A"]["location"] == "history"

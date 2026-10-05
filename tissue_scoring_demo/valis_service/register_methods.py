@@ -268,13 +268,32 @@ def method_affine(fixed_od, moving_od, fixed_mask, moving_mask):
     """The same, allowing shear and anisotropic scale, started from the similarity fit."""
     import SimpleITK as sitk
 
+    import numpy as np
+
     similarity = _mattes(fixed_od, moving_od, fixed_mask, "similarity")
-    affine = sitk.AffineTransform(2)
-    affine.SetCenter(similarity.GetCenter() if hasattr(similarity, "GetCenter") else (0.0, 0.0))
-    composite = sitk.CompositeTransform([similarity])
-    result = _mattes(fixed_od, moving_od, fixed_mask, "affine", initial=sitk.AffineTransform(2))
-    # Keep whichever of the two the scoreboard prefers; affine can overfit a weak signal.
-    return _sitk_matrix(result, fixed_od.shape), {"sitk": result.GetName()}
+
+    # **Started from the similarity fit, which this used to compute and then discard**
+    # (P-19): it passed a fresh identity `AffineTransform` centred on (0, 0), so the
+    # affine optimiser began from no alignment at all and with its rotation centre in the
+    # image corner, and the scoreboard's verdict on affine described that start rather
+    # than the method.
+    #
+    # The fit is carried over as the same map, read off as a matrix rather than by
+    # nesting `similarity` inside a composite - a nested composite is what writes back
+    # as an identity (see `fit_best`). The centre goes to the middle of the image, where
+    # rotation and translation are least coupled, and the translation is adjusted so
+    # the map is unchanged: y = A x + t = A (x - c) + c + (A c + t - c).
+    m = _sitk_matrix(similarity, fixed_od.shape)
+    a, t = m[:, :2], m[:, 2]
+    height, width = fixed_od.shape
+    centre = np.array([width / 2.0, height / 2.0])
+    start = sitk.AffineTransform(2)
+    start.SetCenter(centre.tolist())
+    start.SetMatrix(a.flatten().tolist())
+    start.SetTranslation((a @ centre + t - centre).tolist())
+
+    result = _mattes(fixed_od, moving_od, fixed_mask, "affine", initial=start)
+    return _sitk_matrix(result, fixed_od.shape), {"sitk": result.GetName(), "init": "similarity"}
 
 
 def method_bspline(fixed_od, moving_od, fixed_mask, moving_mask):

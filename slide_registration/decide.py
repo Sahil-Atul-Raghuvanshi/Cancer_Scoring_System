@@ -23,6 +23,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import common  # noqa: E402
+import fit_best  # noqa: E402  - FORCE_METHOD decides what the document may claim is used
 
 OUT = common.RESULTS / "DECISIONS.md"
 
@@ -55,6 +56,38 @@ def _methods_table() -> tuple[list[dict], dict]:
             wins[best] = wins.get(best, 0) + 1
             rows.append({"case": case, "marker": code, "scores": scores, "best": best})
     return rows, wins
+
+
+def _mean_loss(rows: list[dict], method: str) -> float | None:
+    """Mean NMI a method gave up against each pair's best, over the pairs it ran on."""
+    losses = [
+        row["scores"][row["best"]] - row["scores"][method]
+        for row in rows
+        if method in row["scores"]
+    ]
+    return sum(losses) / len(losses) if losses else None
+
+
+def _affine_is_current() -> tuple[bool, int]:
+    """Whether every stored affine attempt ran from the similarity start, and how many ran.
+
+    Before P-19 `method_affine` threw its similarity fit away and started from an
+    identity transform centred on the image corner. On a known synthetic warp that start
+    ended 15.9 px out where the similarity fit itself was 8.3 px out and the corrected
+    affine 0.08 px. Sweeps since then record `init: similarity` on every affine attempt;
+    one without it describes the bug, not the method.
+    """
+    attempts = stale = 0
+    for case in sorted(common.cases()):
+        payload = common.read_json(common.case_dir(case) / "methods.json") or {}
+        for entry in (payload.get("slides") or {}).values():
+            affine = (entry.get("methods") or {}).get("affine")
+            if not affine:
+                continue
+            attempts += 1
+            if affine.get("init") != "similarity":
+                stale += 1
+    return stale == 0 and attempts > 0, attempts
 
 
 def _scores_from(path: pathlib.Path) -> dict[tuple[str, str], str]:
@@ -123,8 +156,22 @@ def write() -> pathlib.Path:
         " information, then measured: **10 of 16 fits folded tissue through itself**"
         " (negative Jacobian), stretching up to 6.1x. Worst case folded 24% of a section —"
         " and it had scored the cohort's *highest* NMI gain. MI is blind to this. |")
-    add("| Affine | not adopted | Safe like `mattes` (constant Jacobian) but less accurate:"
-        " mean loss against per-pair best 0.0185 vs `mattes`'s 0.0117. |")
+    rows_for_loss, _ = _methods_table()
+    affine_loss = _mean_loss(rows_for_loss, "affine")
+    mattes_loss = _mean_loss(rows_for_loss, "mattes")
+    affine_current, affine_runs = _affine_is_current()
+    losses = (
+        f"mean loss against per-pair best {affine_loss:.4f} vs `mattes`'s {mattes_loss:.4f}"
+        if affine_loss is not None and mattes_loss is not None
+        else "no stored comparison"
+    )
+    if affine_current:
+        add(f"| Affine | {'not adopted' if affine_loss > mattes_loss else 'competitive'} | Safe like"
+            f" `mattes` (constant Jacobian); {losses} over {affine_runs} pairs. |")
+    else:
+        add(f"| Affine | **UNDECIDED — re-run the sweep** | The stored attempts ({affine_runs}) ran"
+            " from an identity start, not the similarity fit (P-19, fixed 2026-10-05), so"
+            f" their {losses} says nothing about affine as a method. |")
     add("| Pre-rotating sections before matching | **WORKS** | CAN_00267's CD44 section is"
         " mounted ~196° round. Correcting it took that pair from 5 matched features to 13. |")
     add("| Rendering all six sections to one physical grid | **WORKS — required** | Defeats"
@@ -185,8 +232,13 @@ def write() -> pathlib.Path:
     add("   because mutual information cannot see a fold. More data on the wrong measurement")
     add("   does not converge on the right answer. The per-pair scoreboard is still recorded")
     add("   beside every transform, so a specific pair can be revisited.")
-    add("3. **VALIS is not removed**, it is one entry on that scoreboard. Where it wins it")
-    add("   is used.")
+    if fit_best.FORCE_METHOD:
+        add(f"3. **Every pair is fitted with `{fit_best.FORCE_METHOD}`, whatever the scoreboard says**")
+        add("   (`fit_best.FORCE_METHOD`). The scoreboard - VALIS included - is recorded beside")
+        add("   each transform for reference; its winner is not what is used.")
+    else:
+        add("3. **Each pair is fitted with its scoreboard winner** (`fit_best.FORCE_METHOD` is")
+        add("   unset), VALIS included where it scored best.")
     add("4. **The tissue mask must be optical-density based, not saturation based.** A")
     add("   saturation rule measures how *stained* a slide is and captured 4% of the tissue")
     add("   on CAN_00865's CD44 section.")

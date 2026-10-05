@@ -102,6 +102,90 @@ def ensure_dirs() -> None:
         directory.mkdir(parents=True, exist_ok=True)
 
 
+# --- the worker process (P-19) -------------------------------------------------
+#
+# `run_all.py` starts one `run_case.py` per case, and that worker may start children of
+# its own. Two things need to know exactly which processes those are: `keepalive.py`,
+# which must judge liveness by *this case's* CPU rather than by any python on the
+# machine, and the watchdog, which must stop the whole tree - `Popen.kill()` on Windows
+# ends the one process and leaves its children running.
+
+
+def worker_pid_path(case_id: str) -> pathlib.Path:
+    """Where `run_all.py` records the pid of the worker it started for a case."""
+    return STATE / f"{case_id}.pid"
+
+
+def worker_pid(case_id: str) -> int | None:
+    try:
+        return int(worker_pid_path(case_id).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def process_tree(root: int) -> set[int]:
+    """`root` and every process descended from it, from one Toolhelp snapshot.
+
+    ctypes rather than psutil, which is not in the backend's environment. A pid whose
+    parent has exited can be reused by Windows, so a descendant is only counted when it
+    is reached from `root` itself - never by matching a parent pid that happens to be
+    free again.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    class _Entry(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_char * 260),
+        ]
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)  # TH32CS_SNAPPROCESS
+    if snapshot in (None, wintypes.HANDLE(-1).value):
+        return {root}
+
+    children: dict[int, list[int]] = {}
+    try:
+        entry = _Entry()
+        entry.dwSize = ctypes.sizeof(_Entry)
+        more = kernel32.Process32First(snapshot, ctypes.byref(entry))
+        while more:
+            children.setdefault(entry.th32ParentProcessID, []).append(entry.th32ProcessID)
+            more = kernel32.Process32Next(snapshot, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snapshot)
+
+    tree, frontier = {root}, [root]
+    while frontier:
+        for child in children.get(frontier.pop(), []):
+            if child not in tree:
+                tree.add(child)
+                frontier.append(child)
+    return tree
+
+
+def kill_tree(pid: int) -> None:
+    """Stop a worker and everything it started. `/T` is the part `Popen.kill` lacks."""
+    import subprocess
+
+    subprocess.run(
+        ["taskkill", "/PID", str(pid), "/T", "/F"],
+        capture_output=True,
+        timeout=120,
+        check=False,
+    )
+
+
 # --- saying things -----------------------------------------------------------
 
 

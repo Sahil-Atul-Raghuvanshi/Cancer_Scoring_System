@@ -89,34 +89,19 @@ def _cpu_seconds(pid: int) -> float | None:
     return ticks / 1e7  # 100-nanosecond intervals
 
 
-def _python_pids() -> list[int]:
-    """Every python.exe on the machine.
+def _worker_pids(case_id: str) -> list[int]:
+    """The running case's worker and everything it started - and nothing else (P-19).
 
-    Read from `tasklist` rather than WMIC, which is absent on this build, and rather
-    than psutil, which is not in the backend's environment. Command lines are not
-    available this way, so this cannot tell the worker from any other python - which is
-    why the caller does not try to, and asks instead whether *any* of them is busy. The
-    only python processes here are this pass's own.
+    This used to sample every python.exe on the machine and ask whether *any* was busy.
+    A hung worker beside one busy, unrelated python - a notebook, the demo backend,
+    another script - was then reported as working, kept alive past the silence rule, and
+    only stopped at the eight-hour limit. `run_all.py` now records the pid it started, so
+    the question is asked of that process tree alone.
     """
-    import subprocess
-
-    try:
-        out = subprocess.run(
-            ["tasklist", "/FO", "CSV", "/NH", "/FI", "IMAGENAME eq python.exe"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        ).stdout
-    except Exception:  # noqa: BLE001 - a failed sample must not end the keepalive
+    root = pipeline.worker_pid(case_id)
+    if root is None:
         return []
-
-    pids = []
-    for line in out.splitlines():
-        parts = [one.strip('" ') for one in line.split('","')]
-        if len(parts) > 1 and parts[1].isdigit():
-            pids.append(int(parts[1]))
-    return pids
+    return sorted(pipeline.process_tree(root))
 
 
 def _running_case() -> str | None:
@@ -130,10 +115,9 @@ def _running_case() -> str | None:
 def _busiest(before: dict[int, float], after: dict[int, float], seconds: float) -> float:
     """The highest per-process CPU share seen across the sample, as a fraction of a core.
 
-    The maximum rather than the sum: the sum would count the orchestrator and this
-    keepalive alongside the worker, and both are idle enough that it would not change the
-    answer - but a maximum says something true about a single process, which is what the
-    question is about.
+    Over the worker's own process tree only - see `_worker_pids`. The maximum rather than
+    the sum, because a maximum says something true about a single process, which is what
+    "is this stage computing" is about.
     """
     best = 0.0
     for pid, then in before.items():
@@ -167,7 +151,17 @@ def main() -> int:
             time.sleep(SAMPLE_S)
             continue
 
-        pids = _python_pids()
+        pids = _worker_pids(case_id)
+        if not pids:
+            # No recorded worker - an orchestrator from before the pid file, or a case
+            # between spawns. Claiming liveness without evidence is the bug this fixes,
+            # so nothing is written and the watchdog decides.
+            pipeline.say(f"{case_id}: no worker pid recorded - leaving the watchdog to it", log)
+            if args.once:
+                print(f"{case_id}: no worker pid recorded")
+                return 0
+            time.sleep(SAMPLE_S)
+            continue
         before = {pid: value for pid in pids if (value := _cpu_seconds(pid)) is not None}
         time.sleep(SAMPLE_S)
         after = {pid: value for pid in pids if (value := _cpu_seconds(pid)) is not None}

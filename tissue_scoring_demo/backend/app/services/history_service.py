@@ -344,6 +344,10 @@ def _marker_entry(
     return {
         "marker": marker,
         "name": panel.spec(marker).full_name,
+        # Per marker, not only per case (P-19): nothing guarantees one H&E per case,
+        # and a marker filed under the case-level id would look for its pair
+        # directories under the wrong key and find nothing to move.
+        "heUploadId": he_upload_id,
         "ihcUploadId": ihc_upload_id,
         "location": location,
         "state": _state_from(steps),
@@ -354,6 +358,49 @@ def _marker_entry(
         "score": _score_of(root / "scores" / key / "report.json"),
         "updatedAt": _now(),
     }
+
+
+def _he_of(manifest: dict, entry: dict) -> str:
+    """The H&E a marker was run against.
+
+    Manifests written before P-19 record it once per case, so the case-level id is the
+    fallback rather than an error.
+    """
+    return entry.get("heUploadId") or manifest["heUploadId"]
+
+
+def _required(entry: dict, pieces: list[Piece]) -> list[Piece]:
+    """The pieces that must exist for a move to describe this marker truthfully.
+
+    Not every piece: a partial run has no score directory, and that is not a fault. What
+    must be there is the slide record, the case sidecar, and the directory of every step
+    the manifest says finished. A step marked done whose directory is missing means the
+    move is pointed at the wrong place - typically the wrong H&E key - and filing it
+    anyway is how a marker came to be recorded as `history` while its run stayed live.
+    """
+    steps = entry.get("steps") or {}
+    done = {tree for number, tree in PAIR_STEPS if steps.get(str(number))}
+    trees = _trees()
+    needed = []
+    for piece in pieces:
+        if piece.live.suffix == ".json":
+            needed.append(piece)
+        elif any(piece.live.parent == trees[tree] for tree in done):
+            needed.append(piece)
+    return needed
+
+
+def _refuse_missing(case_id: str, letter: str, missing: list[Path], where: str) -> None:
+    """Raise, before anything moves, when a piece the manifest relies on is absent."""
+    if not missing:
+        return
+    names = ", ".join(str(path) for path in missing[:4])
+    more = f" and {len(missing) - 4} more" if len(missing) > 4 else ""
+    raise HistoryError(
+        f"{case_id} {letter}: {len(missing)} piece(s) the manifest says exist are not in "
+        f"the {where} tree ({names}{more}). Nothing was moved and the manifest is "
+        "unchanged - recording the marker as moved would point it at nothing."
+    )
 
 
 # --- the operations ---------------------------------------------------------
@@ -440,27 +487,39 @@ def archive_marker(case_id: str, marker: str) -> dict:
     if entry["location"] == "history":
         return manifest
 
-    he = manifest["heUploadId"]
+    he = _he_of(manifest, entry)
     ihc = entry["ihcUploadId"]
+    pieces = _marker_pieces(case_id, letter, he, ihc)
+    missing = [piece.live for piece in _required(entry, pieces) if not piece.live.exists()]
+    _refuse_missing(case_id, letter, missing, "live")
 
     # The overview the list screen shows, rendered while the slide record is
     # still reachable. After the move there is no upload id to render from.
     _ensure_thumbnail(case_id, he)
 
-    for piece in _marker_pieces(case_id, letter, he, ihc):
+    for piece in pieces:
         _move(piece.live, piece.filed)
 
+    entry["heUploadId"] = he
     entry["location"] = "history"
     entry["updatedAt"] = _now()
     manifest["markers"][letter] = entry
 
-    # The H&E work goes only when the last marker using it has gone. Taking it
-    # while another marker is open would strand that marker without the ROI its
-    # own regions were carried from.
-    if all(item["location"] == "history" for item in manifest["markers"].values()):
+    # The H&E work goes only when the last marker using *that H&E* has gone. Taking it
+    # while another marker is open would strand that marker without the ROI its own
+    # regions were carried from. Asked per H&E, because a case may have more than one.
+    still_open = {
+        _he_of(manifest, item)
+        for item in manifest["markers"].values()
+        if item["location"] != "history"
+    }
+    shared = manifest.setdefault("sharedLocations", {})
+    if he not in still_open:
         for piece in _shared_pieces(case_id, he):
             _move(piece.live, piece.filed)
-        manifest["sharedLocation"] = "history"
+        shared[he] = "history"
+    every_filed = all(item["location"] == "history" for item in manifest["markers"].values())
+    manifest["sharedLocation"] = "history" if every_filed else "demo"
 
     save_manifest(manifest)
     logger.info("history: filed %s %s", case_id, letter)
@@ -478,17 +537,25 @@ def open_marker(case_id: str, marker: str) -> dict:
     if entry is None:
         raise HistoryError(f"case {case_id} has no run for marker {letter}")
 
-    he = manifest["heUploadId"]
+    he = _he_of(manifest, entry)
     ihc = entry["ihcUploadId"]
-
-    # Shared first: the marker's own artefacts refer to regions that live in it.
-    if manifest.get("sharedLocation") == "history":
-        for piece in _shared_pieces(case_id, he):
-            _move(piece.filed, piece.live)
-        manifest["sharedLocation"] = "demo"
+    pieces = _marker_pieces(case_id, letter, he, ihc)
+    shared = manifest.setdefault("sharedLocations", {})
+    shared_filed = shared.get(he, manifest.get("sharedLocation")) == "history"
 
     if entry["location"] == "history":
-        for piece in _marker_pieces(case_id, letter, he, ihc):
+        missing = [piece.filed for piece in _required(entry, pieces) if not piece.filed.exists()]
+        _refuse_missing(case_id, letter, missing, "filed")
+
+    # Shared first: the marker's own artefacts refer to regions that live in it.
+    if shared_filed:
+        for piece in _shared_pieces(case_id, he):
+            _move(piece.filed, piece.live)
+        shared[he] = "demo"
+    manifest["sharedLocation"] = "demo"
+
+    if entry["location"] == "history":
+        for piece in pieces:
             _move(piece.filed, piece.live)
         entry["location"] = "demo"
 
@@ -515,7 +582,7 @@ def delete_marker(case_id: str, marker: str) -> dict:
     if entry is None:
         raise HistoryError(f"case {case_id} has no run for marker {letter}")
 
-    he = manifest["heUploadId"]
+    he = _he_of(manifest, entry)
     ihc = entry["ihcUploadId"]
 
     for piece in _marker_pieces(case_id, letter, he, ihc):
@@ -541,14 +608,17 @@ def delete_case(case_id: str) -> None:
     if manifest is None:
         raise HistoryError(f"nothing is recorded for case {case_id}")
 
+    # Every H&E the case's markers were run against, not only the case-level one.
+    hes = {_he_of(manifest, entry) for entry in manifest["markers"].values()}
+    hes.add(manifest.get("heUploadId", ""))
+
     for letter in list(manifest["markers"]):
         try:
             delete_marker(case_id, letter)
         except HistoryError:
             continue
 
-    he = manifest.get("heUploadId", "")
-    if he:
+    for he in filter(None, hes):
         for piece in _shared_pieces(case_id, he):
             for path in (piece.live, piece.filed):
                 if path.is_dir():

@@ -157,6 +157,8 @@ def run_case(case_id: str) -> tuple[str, str]:
             stdout=stream,
             stderr=subprocess.STDOUT,
         )
+        # So `keepalive.py` measures this worker's CPU and nobody else's.
+        pipeline.worker_pid_path(case_id).write_text(str(process.pid), encoding="utf-8")
 
         started = time.monotonic()
         while True:
@@ -170,8 +172,9 @@ def run_case(case_id: str) -> tuple[str, str]:
                     f"{case_id}: over the {CASE_LIMIT_S / 3600:.0f}h limit, stopping it",
                     log,
                 )
-                process.kill()
+                pipeline.kill_tree(process.pid)
                 process.wait(timeout=120)
+                pipeline.worker_pid_path(case_id).unlink(missing_ok=True)
                 return "timeout", f"killed after {elapsed / 3600:.1f}h"
 
             silent = _heartbeat(case_id)
@@ -180,11 +183,14 @@ def run_case(case_id: str) -> tuple[str, str]:
                     f"{case_id}: silent for {silent / 60:.0f} min, treating as hung",
                     log,
                 )
-                process.kill()
+                pipeline.kill_tree(process.pid)
                 process.wait(timeout=120)
+                pipeline.worker_pid_path(case_id).unlink(missing_ok=True)
                 return "stalled", f"no log line for {silent / 60:.0f} min"
 
             time.sleep(POLL_S)
+
+    pipeline.worker_pid_path(case_id).unlink(missing_ok=True)
 
     # The exit code says whether anything scored; the record says how much. Reading the
     # record rather than trusting the code means a case that scored four markers and

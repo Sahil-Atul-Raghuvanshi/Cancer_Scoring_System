@@ -392,3 +392,47 @@ def test_policy_is_cheap_and_says_whether_to_bother(client: TestClient):
     assert body["cleanupOnDisconnect"] is False, "must ship off"
     assert body["scope"] != "slide"
     assert body["graceSeconds"] > 0
+
+
+# --- P-19: pair names whose ids contain underscores ---------------------------
+
+#: The delivered CAN_00270 ABCC4 pair's IHC id, which contains `__` itself.
+_IHC_WITH_SEAM = "TS95__IA99rrDpqK5GLRxQ"
+
+
+@pytest.mark.parametrize(
+    ("he", "ihc"),
+    [
+        ("Bke3j9UYAii7MtPPG74StQ", _IHC_WITH_SEAM),  # IHC id contains `__`
+        ("he_ends_with_", "plainIhcId"),  # H&E id ends in `_`: name has `___`
+        ("he__has__two", "ihc__too"),  # both halves contain `__`
+        ("_leading", "trailing_"),
+    ],
+)
+def test_a_pair_whose_ids_contain_underscores_is_still_reachable(he: str, ihc: str):
+    """`token_urlsafe` ids can contain `_`, so the pair seam cannot be found by splitting."""
+    known = {he, ihc}
+    assert not maintenance_service.is_orphaned(f"{he}__{ihc}", known)
+
+
+def test_a_pair_is_orphaned_when_either_slide_is_gone():
+    known = {"heId", _IHC_WITH_SEAM}
+    assert maintenance_service.is_orphaned(f"heId__{_IHC_WITH_SEAM}", {"heId"})
+    assert maintenance_service.is_orphaned(f"heId__{_IHC_WITH_SEAM}", {_IHC_WITH_SEAM})
+    # Two halves that are each known, but not this pair's halves, do not count.
+    assert maintenance_service.is_orphaned("heId__TS95", known)
+    assert maintenance_service.is_orphaned("ghost", known)
+    assert not maintenance_service.is_orphaned("heId", known)
+
+
+def test_the_start_up_sweep_keeps_the_delivered_pair_with_a_seam_in_its_id(store: Path):
+    """The exact P-19 case: before the fix this directory was deleted on every start."""
+    _slide("heId")
+    _slide(_IHC_WITH_SEAM)
+    pair = _cache(f"heId__{_IHC_WITH_SEAM}", settings.roi_refinement_dir)
+    gone = _cache(f"heId__{_IHC_WITH_SEAM}x", settings.roi_refinement_dir)
+
+    maintenance_service.sweep_orphans_on_start()
+
+    assert pair.exists()
+    assert not gone.exists()
