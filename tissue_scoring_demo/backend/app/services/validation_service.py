@@ -78,10 +78,23 @@ class ValidationService:
         # lives in this repository. It is searched first for that reason - the copy
         # under `data/original/` is a drop-box, and a stale file there should not
         # outrank the delivered one.
+        #
+        # The client's material is shared by every data version, so it lives under
+        # `storage/data/`, not beside this version's runs. Looking only next to
+        # `settings.data_dir` found nothing after the versioned layout landed, and
+        # step 19 silently had no readers to compare against.
+        from app.core.config import ORIGINAL_ROOT, data_versions
+
+        SHARED_DATA_ROOT = data_versions.SHARED_DATA_ROOT
+
+        sheet = "6Slide Reports2.xlsx"
         root = settings.data_dir.parent
         for candidate in (
-            root / "oncostem_requiremnet_docs" / "client" / "OncoStem" / "6Slide Reports2.xlsx",
-            root / "original" / "6Slide Reports2.xlsx",
+            SHARED_DATA_ROOT / "oncostem_requiremnet_docs" / "client" / "OncoStem" / sheet,
+            SHARED_DATA_ROOT / "oncostem_docs" / "client" / "OncoStem" / sheet,
+            ORIGINAL_ROOT / "oncostem_scores" / sheet,
+            root / "oncostem_requiremnet_docs" / "client" / "OncoStem" / sheet,
+            root / "original" / sheet,
             root / "original" / "reader_scores_transcribed.xlsx",
         ):
             if candidate.is_file():
