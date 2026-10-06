@@ -5,8 +5,12 @@
  * for step screens: plain language on the surface, and the numbers a specialist
  * wants folded into a `<details>` at the end. The three things a non-expert has
  * to leave with are that nuclei were found one by one rather than as a blob,
- * that only a sample of each region was looked at, and that the brown stain was
- * deliberately removed before anything looked for a cell.
+ * that only a sample of each region was looked at, and that the count is checked
+ * against the H&E of the same block, per mm² of tissue.
+ *
+ * **Which detector (P-03).** Cellpose since 6 October 2026, reading the field in
+ * grey - chosen on a benchmark of every alternative. Reports made by the earlier
+ * InstanSeg path (brown removed first) still render, with their own wording.
  *
  * **Why the whole slide rather than a cropped square.** This used to show one
  * 512 px field at a time. That picture is honest about the cells and silent
@@ -17,10 +21,11 @@
  * and the outlines only appear when you are close enough for one to mean
  * something.
  *
- * The two comparison panels are arguments, not decoration, and they stay on the
+ * The comparison panels are arguments, not decoration, and they stay on the
  * page rather than in the disclosure because they are the part a viewer
- * remembers: a naive watershed against the model on the same field, and the same
- * model run on the raw stain against the counterstain.
+ * remembers: a naive watershed against the model on the same field, and - on
+ * InstanSeg reports only - the same model run on the raw stain against the
+ * counterstain.
  */
 
 import { useMemo, useState } from 'react'
@@ -65,12 +70,22 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   )
 }
 
+/** True for reports made by the Cellpose path, false for older InstanSeg ones. */
+function isCellpose(report: NucleiReport): boolean {
+  return report.engine === 'cellpose'
+}
+
 function DensityCheck({ report }: { report: NucleiReport }) {
   const shortfall = report.densityShortfall
-  const he = report.heDensityPerMm2
+  // Per mm² of tissue when the report has it (P-03); older reports only have the
+  // per-square figure, and their shortfall was computed on that.
+  const perTissue = report.densityPerTissueMm2 != null && report.heDensityPerTissueMm2 != null
+  const ihc = perTissue ? report.densityPerTissueMm2 : report.densityPerMm2
+  const he = perTissue ? report.heDensityPerTissueMm2 : report.heDensityPerMm2
 
-  if (he == null || shortfall == null) return null
+  if (he == null || ihc == null || shortfall == null) return null
   const bad = shortfall >= 0.3
+  const unit = perTissue ? 'mm² of tissue' : 'mm²'
 
   return (
     <div className={bad ? 'nuc-check nuc-check--warn' : 'nuc-check'}>
@@ -81,16 +96,26 @@ function DensityCheck({ report }: { report: NucleiReport }) {
       </div>
       <p>
         This stained section gave{' '}
-        <strong className="mono">{report.densityPerMm2.toLocaleString()}</strong> nuclei per
-        mm², against <strong className="mono">{he.toLocaleString()}</strong> on the same
-        patient&rsquo;s H&amp;E slide inside the same regions.
+        <strong className="mono">{ihc.toLocaleString()}</strong> nuclei per {unit}, against{' '}
+        <strong className="mono">{he.toLocaleString()}</strong> on the same patient&rsquo;s
+        H&amp;E slide inside the same regions.
       </p>
+      {perTissue && report.tissueShare != null && (
+        <p>
+          Counted per mm² of <em>tissue</em>, not per square: glass and blank scanner
+          background inside the squares do not count as missing cells. Tissue made up{' '}
+          <span className="mono">{(report.tissueShare * 100).toFixed(0)}%</span> of the squares
+          checked here.
+        </p>
+      )}
       {bad ? (
         <p>
           The two slides are neighbouring slices of the same block, so they hold roughly the
           same cells. A gap this large ({(shortfall * 100).toFixed(0)}%) means cells are
-          being <em>missed</em> here, not that they are absent &mdash; heavy brown staining
-          hides the blue. Every missed cell makes the final percentage come out too high.
+          being <em>missed</em> here, not that they are absent. On heavily stained slides the
+          tumour cells&rsquo; centres can show only as pale holes in the brown, which no cell
+          finder tested picks up. Which way that moves the final percentage has not been
+          measured yet.
         </p>
       ) : (
         <p>
@@ -115,6 +140,7 @@ function Comparisons({
 }) {
   const entry = report.comparison.find((item) => item.regionRank === rank)
   if (!entry) return null
+  const counted = entry.production ?? entry.instansegHaematoxylin
 
   return (
     <div className="nuc-compare">
@@ -130,11 +156,11 @@ function Comparisons({
           alt="The model's outlines beside a classical watershed on the same field"
         />
         <p className="nuc-compare__figures mono">
-          {entry.instansegHaematoxylin} found by the model · {entry.watershedHaematoxylin} by the
-          classical method
+          {counted} found by the model · {entry.watershedHaematoxylin} by the classical method
         </p>
       </section>
 
+      {entry.engine === 'instanseg' && (
       <section>
         <h4>Why the brown is removed first</h4>
         <p>
@@ -151,6 +177,7 @@ function Comparisons({
           {entry.instansegRgb} with it left in
         </p>
       </section>
+      )}
     </div>
   )
 }
@@ -213,9 +240,10 @@ export function NucleiPanel({
           recorded as one, a cell disappears from the count.
         </p>
         <p>
-          Cells are found on the <strong>blue stain</strong>, with the brown removed first.
-          Only a sample of squares from each region is checked, spread evenly across it,
-          which takes a minute or two instead of half an hour.
+          Cells are found by a cell-finding model that looks at the slide in black and white.
+          It was picked because, in a test of every option, it found the most of the cells
+          that are really there. Only a sample of squares from each region is checked, spread
+          evenly across it, which takes a few minutes instead of half an hour.
         </p>
 
         {!hasConfirmedAlignment && (
@@ -259,11 +287,13 @@ export function NucleiPanel({
             Across{' '}
             <span className="mono">{report.regions.length}</span>{' '}
             {report.regions.length === 1 ? 'region' : 'regions'} of invasive tumour, from{' '}
-            <span className="mono">{report.sampledMm2.toFixed(2)} mm²</span> of tissue. Every
-            cell was found on the blue stain, with the brown removed first.
+            <span className="mono">{report.sampledMm2.toFixed(2)} mm²</span> checked.{' '}
+            {isCellpose(report)
+              ? 'Every cell was found by Cellpose, looking at the slide in black and white.'
+              : 'Every cell was found on the blue stain, with the brown removed first.'}
           </p>
         </div>
-        <Badge tone="neutral">{report.modelName ?? 'model'}</Badge>
+        <Badge tone="neutral">{isCellpose(report) ? 'Cellpose' : (report.modelName ?? 'model')}</Badge>
       </header>
 
       <DensityCheck report={report} />
@@ -311,8 +341,8 @@ export function NucleiPanel({
           hint={`region ${region.rank} · ${region.detected.toLocaleString()} found, edge ones excluded`}
         />
         <Stat
-          label="Cells per mm²"
-          value={region.densityPerMm2.toLocaleString()}
+          label={region.densityPerTissueMm2 != null ? 'Cells per mm² of tissue' : 'Cells per mm²'}
+          value={(region.densityPerTissueMm2 ?? region.densityPerMm2).toLocaleString()}
           hint="how tightly packed the tissue is"
         />
         <Stat
@@ -344,22 +374,50 @@ export function NucleiPanel({
         <summary>The technical detail</summary>
 
         <h4>Model</h4>
-        <ul>
-          <li>
-            <strong>{report.modelName}</strong> {report.modelVersion} ({report.modelLicence}),
-            run as TorchScript on the CPU at {report.modelMpp} µm/px — the input scale its own
-            metadata declares. The <em>display</em> above will zoom past that; the model does
-            not, because 0.25 µm/px is outside what it was trained on.
-          </li>
-          <li>
-            The checkpoint is verified against its sha256 and then required to reproduce the
-            upstream&rsquo;s own test tensor exactly before it will serve anything. Without
-            the percentile stretch its metadata specifies, this model returns zero nuclei
-            silently — which would read as &ldquo;this tissue has no cells&rdquo;.
-          </li>
-        </ul>
+        {isCellpose(report) ? (
+          <ul>
+            <li>
+              <strong>Cellpose &lsquo;{report.modelName}&rsquo;</strong> {report.modelVersion}{' '}
+              ({report.modelLicence}), used as published with no training, on the CPU at{' '}
+              {report.modelMpp} µm/px with a 7 µm expected nucleus. Each field is shown to it as
+              inverted grey (nuclei bright), the input it was benchmarked on.
+            </li>
+            <li>
+              Chosen on 6 October 2026 (P-03) over InstanSeg on the haematoxylin channel,
+              InstanSeg on colour and on summed stain, a watershed, DeepLIIF, a published IHC
+              model and two fine-tuned Cellpose models. Per mm² of tissue it came within 20% of
+              the H&amp;E on average (the old path: 58%), and on breast IHC cells labelled from
+              immunofluorescence it scored F1 0.77 (old path 0.70).
+            </li>
+            <li>
+              The checkpoint is verified against its sha256, must load at the built-in nuclei
+              model&rsquo;s base diameter (17 px - a renamed file silently loads at 30), and
+              must reproduce a recorded label map exactly before it serves anything.
+            </li>
+            <li>
+              The H&amp;E reference in the check above is still counted by InstanSeg on the
+              H&amp;E photograph, the method it was validated with, so changing the IHC
+              detector moves only one side of the comparison.
+            </li>
+          </ul>
+        ) : (
+          <ul>
+            <li>
+              <strong>{report.modelName}</strong> {report.modelVersion} ({report.modelLicence}),
+              run as TorchScript on the CPU at {report.modelMpp} µm/px — the input scale its own
+              metadata declares. The <em>display</em> above will zoom past that; the model does
+              not, because 0.25 µm/px is outside what it was trained on.
+            </li>
+            <li>
+              The checkpoint is verified against its sha256 and then required to reproduce the
+              upstream&rsquo;s own test tensor exactly before it will serve anything. Without
+              the percentile stretch its metadata specifies, this model returns zero nuclei
+              silently — which would read as &ldquo;this tissue has no cells&rdquo;.
+            </li>
+          </ul>
+        )}
 
-        <h4>Stain separation</h4>
+        <h4>Stain separation{isCellpose(report) ? ' (for the stain measurements, not detection)' : ''}</h4>
         <ul>
           <li>
             Un-mixed with the <strong>{report.stain.basis}</strong> basis, haematoxylin

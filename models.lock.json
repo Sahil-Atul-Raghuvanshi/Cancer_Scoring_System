@@ -191,6 +191,22 @@
       ]
     },
     {
+      "path": "nuclei/cellpose_nucleitorch_0",
+      "bytes": 26563614,
+      "sha256": "89ca45e4a45048d5010d29621466b1274b91b3dcb9714dce9f9e90a9a8671303",
+      "md5": "fe230f0667d43e22e01354c7efda673b",
+      "hash": "published",
+      "role": "runtime",
+      "licence": "BSD-3-Clause",
+      "used_by": "step 13 - nuclei instance segmentation (Cellpose 'nuclei', zero-shot, the default since P-03). The name must end in 'nucleitorch_0' or Cellpose loads it at the wrong base diameter",
+      "sources": [
+        {
+          "kind": "url",
+          "url": "https://www.cellpose.org/models/nucleitorch_0"
+        }
+      ]
+    },
+    {
       "path": "tissue_type/invasive_tile_fov112_fix1_concat.pt",
       "bytes": 90628545,
       "sha256": "76b167d6eff2662d56df8b3b3b004250c33575b40f5c373c4a112c79567ee04c",

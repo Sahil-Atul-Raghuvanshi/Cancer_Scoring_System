@@ -1293,6 +1293,44 @@ class Settings(BaseSettings):
     #: toggle that does exactly that, side by side, with both counts on screen.
     nuclei_remove_dab: bool = True
 
+    #: Which detector finds the IHC nuclei: "cellpose" or "instanseg" (P-03).
+    #:
+    #: **Cellpose since 6 October 2026, on measurement.** Every option the review
+    #: named was benchmarked on 240 production fields from 10 pairs across all five
+    #: markers (`p03_nuclei/`). Zero-shot Cellpose on the inverted grey field was
+    #: best on both independent checks: 20% mean gap to the H&E per mm2 of tissue
+    #: (InstanSeg on the haematoxylin render, the previous default: 58%), and F1
+    #: 0.77 against breast IHC cells labelled from immunofluorescence (0.70).
+    #:
+    #: It reads the raw field in grey, so unlike the "instanseg" path the brown is
+    #: *not* removed first, and `nuclei_remove_dab` does not apply to it. The
+    #: guide's worry - stained cells becoming easier to find - is answered by
+    #: measurement rather than by construction: the per-tissue H&E check below runs
+    #: on every pair, and on the breast set Cellpose found 109% of labelled cells,
+    #: stained and unstained alike. "instanseg" stays for reproducing earlier runs.
+    nuclei_engine: str = "cellpose"
+
+    #: Expected nucleus diameter for Cellpose, in microns: 14 px at 0.5 um/px, the
+    #: value the benchmark measured.
+    nuclei_cellpose_diameter_um: float = 7.0
+
+    #: What counts as tissue when nuclei are expressed per mm2 *of tissue* (P-03).
+    #:
+    #: A field's density used to be counted over its whole area. The benchmark
+    #: found the two worst pairs' fields on bare glass (2% tissue) and on the
+    #: scanner-fill rectangle - a "missing nuclei" figure of 95% where no nuclei
+    #: existed. Tissue is a pixel whose optical-density sum exceeds
+    #: `nuclei_tissue_od` **and** whose grey level varies by more than
+    #: `nuclei_tissue_texture_sd` over a 9x9 window: scanner fill is dark enough to
+    #: pass on density alone, but its local variation is exactly zero, and so is
+    #: clean glass's.
+    nuclei_tissue_od: float = 0.25
+    nuclei_tissue_texture_sd: float = 1.0
+    #: Below this share of tissue across the sampled fields, the report says the
+    #: fields fell mostly on glass or fill - usually an alignment or region problem
+    #: upstream, not a detection one.
+    nuclei_low_tissue_share: float = 0.10
+
     #: Estimate the stain basis from the slide's own pixels (Macenko) for the
     #: detection path, rather than using Ruifrok's fixed matrix.
     #:

@@ -361,12 +361,16 @@ def test_the_checkpoint_matches_the_sha256_its_manifest_declares() -> None:
 
 @needs_model
 def test_the_capability_report_names_the_model_and_its_licence() -> None:
-    """The screen says what is running before anyone waits for it."""
+    """The screen says what is running - the configured detector - before anyone waits."""
     from app.nuclei import capability
 
     report = capability()
+    assert report.engine == settings.nuclei_engine
+    if report.engine == "cellpose" and not cellpose_available():
+        assert report.available is False
+        return
     assert report.available is True
-    assert report.licence == "Apache-2.0"
+    assert report.licence == ("BSD-3-Clause" if report.engine == "cellpose" else "Apache-2.0")
     assert report.mpp == 0.5
 
 
@@ -390,6 +394,11 @@ def test_the_shipped_settings_are_the_ones_that_were_measured() -> None:
     assert settings.nuclei_haematoxylin_gain == 2.5
     assert settings.nuclei_macenko_per_slide is False
     assert settings.nuclei_remove_dab is True
+    # P-03, 6 October 2026: chosen on the p03_nuclei benchmark.
+    assert settings.nuclei_engine == "cellpose"
+    assert settings.nuclei_cellpose_diameter_um == 7.0
+    assert settings.nuclei_tissue_od == 0.25
+    assert settings.nuclei_tissue_texture_sd == 1.0
 
 
 # --- staleness against step 10 -----------------------------------------------
@@ -429,8 +438,9 @@ def test_nuclei_from_a_previous_alignment_are_not_reused():
     same = _report(alignment_generated_at="2026-09-15T11:05:28Z")
     stale = _report(alignment_generated_at="2026-09-10T15:59:49Z")
 
-    assert nuclei_service._matches_alignment(same, alignment) is True
-    assert nuclei_service._matches_alignment(stale, alignment) is False
+    same = _report(alignment_generated_at="2026-09-15T11:05:28Z", engine=settings.nuclei_engine)
+    assert nuclei_service._is_current(same, alignment) is True
+    assert nuclei_service._is_current(stale, alignment) is False
 
 
 def test_an_unstamped_nuclei_report_is_treated_as_stale():
@@ -446,8 +456,156 @@ def test_an_unstamped_nuclei_report_is_treated_as_stale():
     unstamped = _report()
     assert unstamped.alignment_generated_at is None
     assert (
-        nuclei_service._matches_alignment(
+        nuclei_service._is_current(
             unstamped, SimpleNamespace(generated_at="anything")
         )
         is False
     )
+
+
+def test_nuclei_from_another_detector_are_not_reused(monkeypatch):
+    """Changing the detector changes the measurement, so the cached report is stale.
+
+    Without this, every pair segmented before Cellpose became the default would go
+    on reporting InstanSeg's nuclei - matching alignment stamp and all - while the
+    settings said Cellpose (P-15's rule: every input is part of the cache key).
+    A report with no engine was written by InstanSeg, the only detector there was.
+    """
+    from types import SimpleNamespace
+
+    from app.services.nuclei_service import nuclei_service
+
+    alignment = SimpleNamespace(generated_at="t1")
+    old = _report(alignment_generated_at="t1")  # no engine: written by InstanSeg
+
+    monkeypatch.setattr(settings, "nuclei_engine", "cellpose")
+    assert nuclei_service._is_current(old, alignment) is False
+    assert nuclei_service._is_current(_report(alignment_generated_at="t1", engine="cellpose"),
+                                      alignment) is True
+    monkeypatch.setattr(settings, "nuclei_engine", "instanseg")
+    assert nuclei_service._is_current(old, alignment) is True
+
+
+# --- per mm2 of tissue (P-03) -------------------------------------------------
+
+
+def _textured(value: float, size: int = 96, seed: int = 0) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    grey = np.clip(value + rng.normal(0, 12, (size, size)), 0, 255)
+    return np.repeat(grey[..., None], 3, axis=-1).astype(np.uint8)
+
+
+def test_scanner_fill_is_not_tissue_however_dark_it_is():
+    """The CAN_00267 ABCC4 case: a flat grey rectangle passes on density alone.
+
+    Its grey level (146) is well above the density threshold against a 240 white,
+    which is why a density-only test called it tissue; its 9x9 variation is zero.
+    """
+    from app.pipeline.step13_nuclei_segmentation.segment import tissue_share
+
+    fill = np.full((96, 96, 3), 146, np.uint8)
+    assert tissue_share(fill, (240.0, 240.0, 240.0), border_px=8) == 0.0
+
+
+def test_glass_is_not_tissue_and_textured_stain_is():
+    from app.pipeline.step13_nuclei_segmentation.segment import tissue_share
+
+    white = (240.0, 240.0, 240.0)
+    glass = _textured(238)
+    assert tissue_share(glass, white, border_px=8) < 0.05
+    assert tissue_share(_textured(120), white, border_px=8) > 0.95
+
+
+def test_tissue_share_is_measured_over_the_counted_area_only():
+    """The count is divided by the field inside its border band, so is the tissue."""
+    from app.pipeline.step13_nuclei_segmentation.segment import tissue_share
+
+    field = np.full((96, 96, 3), 240, np.uint8)
+    field[:, :8] = _textured(120)[:, :8]  # tissue only inside the border band
+    assert tissue_share(field, (240.0, 240.0, 240.0), border_px=8) == 0.0
+
+
+def test_density_per_tissue_divides_by_the_tissue_not_the_field():
+    from types import SimpleNamespace
+
+    from app.pipeline.step13_nuclei_segmentation.segment import SegmentedField
+
+    nuclei = [SimpleNamespace(counted=True)] * 20
+    field = SegmentedField(field=None, shown=None, rgb=None, haematoxylin=None, labels=None,
+                           nuclei=nuclei, mpp=0.5, level0_scale=1.0, counted_mm2=0.04,
+                           tissue_share=0.25)
+    assert field.density_per_mm2 == pytest.approx(500.0)
+    assert field.tissue_mm2 == pytest.approx(0.01)
+    assert field.density_per_tissue_mm2 == pytest.approx(2000.0)
+
+    on_glass = SegmentedField(field=None, shown=None, rgb=None, haematoxylin=None, labels=None,
+                              nuclei=[], mpp=0.5, level0_scale=1.0, counted_mm2=0.04,
+                              tissue_share=0.0)
+    assert on_glass.density_per_tissue_mm2 == 0.0
+
+
+# --- the Cellpose detector (P-03) ----------------------------------------------
+
+
+def cellpose_available() -> bool:
+    from app.nuclei import cellpose_model
+
+    try:
+        import cellpose  # noqa: F401
+    except ImportError:
+        return False
+    root = cellpose_model.models_dir()
+    return (root / cellpose_model.CHECKPOINT).exists() and (root / cellpose_model.MANIFEST).exists()
+
+
+needs_cellpose = pytest.mark.skipif(
+    not cellpose_available(), reason="cellpose or its checkpoint is not installed"
+)
+
+
+@needs_cellpose
+def test_cellpose_loads_as_the_builtin_nuclei_model_and_passes_parity():
+    """Base diameter 17, not the 30 a renamed checkpoint silently gets.
+
+    The trap is real: loaded as `cellpose_nuclei_torch_0` the same weights came up
+    at 30 px and differed from the benchmark on 8 of 8 fields, with no warning.
+    """
+    from app.nuclei import cellpose_model
+
+    cellpose_model.reset()
+    loaded = cellpose_model.load()  # runs the sha256 and parity gates
+    assert float(loaded.module.diam_mean) == cellpose_model.BASE_DIAMETER_PX
+    assert loaded.mpp == 0.5
+    assert cellpose_model.diameter_px(0.5) == pytest.approx(14.0)
+
+
+@needs_cellpose
+def test_cellpose_parity_is_exact():
+    import hashlib
+
+    from app.nuclei import cellpose_model
+
+    spec = cellpose_model.manifest()
+    tile = np.load(cellpose_model.models_dir() / spec["parity"]["input"])[0]
+    labels = cellpose_model.segment_array(tile.transpose(1, 2, 0).astype(np.uint8), mpp=0.5)
+    assert hashlib.sha256(np.ascontiguousarray(labels).tobytes()).hexdigest() == \
+        spec["parity"]["labels_sha256"]
+
+
+@needs_cellpose
+def test_cellpose_refuses_anything_but_one_rgb_field():
+    from app.nuclei import cellpose_model
+
+    with pytest.raises(ValueError):
+        cellpose_model.segment_array(np.zeros((64, 64), dtype=np.uint8), mpp=0.5)
+
+
+def test_cellpose_reads_the_field_as_inverted_grey():
+    """Nuclei bright, glass dark: the input the benchmark measured."""
+    from app.nuclei.cellpose_model import inverted_grey
+
+    rgb = np.zeros((2, 2, 3), np.uint8)
+    rgb[0, 0] = 255
+    grey = inverted_grey(rgb)
+    assert grey.dtype == np.float32
+    assert grey[0, 0] == 0.0 and grey[1, 1] == 255.0

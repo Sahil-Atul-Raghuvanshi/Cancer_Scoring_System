@@ -282,7 +282,7 @@ class CellTypingService:
             )
             if shortfall and shortfall >= 0.3:
                 detail += (
-                    f" Step 11 also reports {shortfall:.0%} fewer nuclei per mm2 than the "
+                    f" Step 11 also reports {shortfall:.0%} fewer nuclei per mm2 of tissue than the "
                     "H&E of the same block, which is the same finding from the other side."
                 )
             return False, detail

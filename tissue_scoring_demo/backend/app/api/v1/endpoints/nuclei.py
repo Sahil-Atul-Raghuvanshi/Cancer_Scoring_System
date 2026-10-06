@@ -68,6 +68,7 @@ def capability() -> dict:
         "version": report.model_version,
         "licence": report.licence,
         "mpp": report.mpp,
+        "engine": report.engine,
     }
 
 

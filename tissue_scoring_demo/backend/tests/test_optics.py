@@ -66,18 +66,23 @@ def test_the_he_reference_samples_every_region_with_the_ihc_allocation(monkeypat
 
     seen_bases = set()
 
-    def segment(reader, sample, *, white, basis, base_mpp, model_mpp, remove_dab=None):
+    def segment(reader, sample, *, white, basis, base_mpp, model_mpp, remove_dab=None,
+                engine=None):
         seen_bases.add(basis.source)
         assert remove_dab is False, "the H&E is segmented on its own photograph"
-        return SimpleNamespace(counted=10, counted_mm2=0.01,
+        assert engine == "instanseg", "the reference stays on the detector P-21 validated"
+        return SimpleNamespace(counted=10, counted_mm2=0.01, tissue_mm2=0.005,
                                nuclei=[SimpleNamespace(counted=True, area_um2=40.0)])
 
     monkeypatch.setattr(nuclei_module, "fields_for_region", fields)
     monkeypatch.setattr(nuclei_module, "segment_field", segment)
 
-    density, median, used = nuclei_service._he_reference(
+    reference = nuclei_service._he_reference(
         "he", SimpleNamespace(regions=regions), model_mpp=0.5
     )
+    density, median, used = reference.density, reference.median_area, reference.fields
+    assert reference.tissue_density == pytest.approx(2000.0)
+    assert reference.tissue_share == pytest.approx(0.5)
 
     expected = nuclei_module.allocate([8.0, 2.0])
     assert asked == [("big", expected[0]), ("small", expected[1])]

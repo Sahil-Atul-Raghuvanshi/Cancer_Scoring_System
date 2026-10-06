@@ -433,11 +433,12 @@ class ScoreService:
             if shortfall >= 0.3:
                 caveats.append(
                     f"DENOMINATOR INCOMPLETE. This slide yielded {shortfall:.0%} fewer "
-                    "nuclei per mm2 than the case's own H&E inside the same regions. "
-                    "Serial sections of one block hold the same cells, so that gap is a "
-                    "segmentation failure rather than biology - under heavy DAB the "
-                    "counterstain is too weak for nuclear boundaries to survive "
-                    "deconvolution. Every nucleus missed is a cell out of the "
+                    "nuclei per mm2 of tissue than the case's own H&E inside the same "
+                    "regions. Serial sections of one block hold the same cells, so that "
+                    "gap is a detection failure rather than biology - on heavily stained "
+                    "sections tumour nuclei can show only as pale holes in the brown, "
+                    "with no counterstain, and no detector tested finds them (P-22). "
+                    "Every nucleus missed is a cell out of the "
                     "denominator, and which way that moves the percentage has not been "
                     "measured: if the missed cells are mostly the strongly stained ones "
                     "it rises, if they are mostly unstained it falls. Read the "

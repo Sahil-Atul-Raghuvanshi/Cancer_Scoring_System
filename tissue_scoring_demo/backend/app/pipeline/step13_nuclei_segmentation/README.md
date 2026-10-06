@@ -12,6 +12,38 @@ an area, a perimeter, a circularity, an eccentricity, and how much haematoxylin
 it holds. Plus the density per mm2 that the next three steps' denominator rests
 on.
 
+## Changed 6 October 2026 (P-03): Cellpose, and density per mm2 of tissue
+
+Two of the decisions below were reversed on measurement. The full benchmark - 240
+production fields from 10 pairs across all five markers, plus labelled IHC from two
+public sets - is in `p03_nuclei/` and `storage/v1_data/data/p03_nuclei/REPORT.md`.
+
+* **The detector is Cellpose's published `nuclei` model, zero-shot**
+  (`settings.nuclei_engine = "cellpose"`, `app/nuclei/cellpose_model.py`), reading
+  each field as inverted grey. InstanSeg on the DAB-removed haematoxylin render -
+  decision 2 below - missed 58% of the H&E's nuclei per mm2 of tissue, with 1 of 10
+  pairs within 20%; Cellpose missed 20%, 6 of 10 within 20%. On breast IHC cells
+  labelled from immunofluorescence it scored F1 0.77 against 0.70. Fine-tuning it on
+  public IHC (lymphoma or breast) made our slides worse, as did other inputs.
+  InstanSeg stays available as `"instanseg"` and still counts the H&E reference.
+* **Decision 2's rule no longer holds by construction.** Cellpose sees the brown.
+  Whether stained cells are found more readily is now answered by measurement: the
+  H&E check runs on every pair, and on the breast set Cellpose found 109% of the
+  labelled cells, stained and unstained.
+* **The H&E check is per mm2 of tissue** on both sides (decision 3). Two of the
+  benchmark's worst pairs had fields on bare glass and on the scanner-fill rectangle,
+  and a per-field density read both as ~95% missing nuclei. Tissue = optical-density
+  sum over 0.25 **and** 9x9 grey variation over 1 (fill and glass are perfectly
+  flat), measured over each field's counted interior. `densityShortfall` is now this
+  figure; the old one is `areaShortfall`.
+* **Not solved:** on heavily stained sections tumour nuclei show only as pale holes
+  in the brown, with no counterstain, and no detector tested finds them. That is P-22.
+* Cellpose installs with `--no-deps` (`requirements-nodeps.txt`): its metadata pins
+  numpy<2.1, but it reproduces the benchmark byte for byte on this venv's numpy 2.5,
+  and it is parity-checked at every load. Its checkpoint must keep a name ending in
+  `nucleitorch_0`, or Cellpose loads it at base diameter 30 instead of 17 and every
+  field comes out different.
+
 ## The three decisions that shape this step
 
 ### 1. It samples. It does not exhaust.
@@ -30,7 +62,7 @@ The fields are taken at a **uniform stride** through the candidates, not ranked.
 Ranking by stain content would pick the densest fields and report their density
 as the region's, which would destroy the one free QC check this step has (see 3).
 
-### 2. It detects on the counterstain, with the DAB removed.
+### 2. It detects on the counterstain, with the DAB removed. *(InstanSeg path only since 6 October 2026 - see above.)*
 
 The guide is emphatic and it is right. On an IHC slide the brown is what is being
 measured, so it must not decide where cells are thought to be - otherwise a
@@ -94,7 +126,7 @@ would be out of distribution. Segmenting and looking are different resolutions
 for different purposes, and conflating them would degrade the segmentation to
 make a caption true.
 
-## Why InstanSeg, and why there is no new dependency
+## Why InstanSeg, and why there is no new dependency *(the detector until 6 October 2026; still the H&E reference)*
 
 Apache-2.0, **and so is its training data** - tnbc_2018, lynsec, nuinsseg and
 ihc_tma are CC BY 4.0 and consep is Apache-2.0. Two of those five are IHC rather

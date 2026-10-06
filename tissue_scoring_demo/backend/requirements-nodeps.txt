@@ -1,0 +1,7 @@
+# Installed with --no-deps, after requirements-qc.txt (setup.py does this).
+#
+# cellpose: step 13's nucleus detector (P-03). Its metadata pins numpy<2.1; it
+# runs correctly on this venv's numpy 2.5 - measured byte-identical against the
+# numpy 1.26 benchmark env, and app/nuclei/cellpose_model.py re-checks that with a
+# parity run at every load. Its real dependencies are in requirements-qc.txt.
+cellpose==3.1.1.3

@@ -273,6 +273,20 @@ def setup_venv(p: Problems, *, recreate: bool) -> None:
             "move the repository nearer the drive root."
         )
         return
+
+    # Packages whose metadata over-constrains this venv, installed without their
+    # declared dependencies (their real ones are in requirements-qc.txt). Today
+    # that is cellpose, step 13's detector, which pins numpy<2.1 but runs - and is
+    # parity-checked at load - on the venv's numpy 2.5.
+    nodeps = BACKEND / "requirements-nodeps.txt"
+    if nodeps.exists():
+        note(f"installing {nodeps.name} (--no-deps: cellpose)")
+        if not run(
+            [str(py), "-m", "pip", "install", "--no-deps", "-r", str(nodeps), "--quiet"],
+            label="pip install requirements-nodeps.txt",
+        ):
+            p.error("cellpose failed to install; step 13 cannot segment nuclei without it")
+            return
     ok("torch stack installed (CPU wheels)")
 
 

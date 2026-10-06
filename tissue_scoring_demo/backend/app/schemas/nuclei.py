@@ -68,6 +68,10 @@ class FieldOut(APIModel):
     #: Area the counted nuclei were counted over: the field less its border band.
     counted_mm2: float
     density_per_mm2: float
+    #: Share of `counted_mm2` that is tissue (stained and textured): glass and
+    #: scanner fill are not (P-03). Optional because older reports lack it.
+    tissue_share: float | None = None
+    density_per_tissue_mm2: float | None = None
 
 
 class RegionNuclei(APIModel):
@@ -93,6 +97,9 @@ class RegionNuclei(APIModel):
     #: value means the region is heterogeneous and the sample is thin, which is a
     #: statement about confidence rather than a fault.
     density_cv: float
+    #: Tissue within the sampled area, and the density over it (P-03).
+    tissue_mm2: float | None = None
+    density_per_tissue_mm2: float | None = None
 
     median_area_um2: float
     median_circularity: float
@@ -119,6 +126,10 @@ class ComparisonOut(APIModel):
     instanseg_haematoxylin: int
     instanseg_rgb: int
     watershed_haematoxylin: int
+    #: The detector the step actually counts with, and its count on this field. The
+    #: left panel of the watershed comparison is this detector's outlines.
+    engine: str = "instanseg"
+    production: int | None = None
 
 
 class NucleiReport(APIModel):
@@ -141,6 +152,10 @@ class NucleiReport(APIModel):
     #: those are treated as stale, which costs one re-run and cannot mislead.
     alignment_generated_at: str | None = None
 
+    #: The detector these nuclei came from ("cellpose" or "instanseg"). None on
+    #: reports written before the choice existed, which were all InstanSeg; a report
+    #: from another engine than the configured one is re-segmented, not reused.
+    engine: str | None = None
     model_name: str | None = None
     model_version: str | None = None
     model_licence: str | None = None
@@ -155,6 +170,12 @@ class NucleiReport(APIModel):
     counted: int = 0
     sampled_mm2: float = 0.0
     density_per_mm2: float = 0.0
+    #: Tissue inside the sampled area, and nuclei per mm2 of it (P-03): the figure
+    #: the H&E check compares, so fields on glass or scanner fill do not read as
+    #: missing nuclei.
+    tissue_mm2: float | None = None
+    tissue_share: float | None = None
+    density_per_tissue_mm2: float | None = None
 
     #: The cross-slide QC the guide asks for: serial sections of one block should
     #: land in the same neighbourhood, so this carries the same figure for every
@@ -176,10 +197,16 @@ class NucleiReport(APIModel):
     #: region un-mixed with the H-DAB basis - and is biased.
     he_reference_fields: int | None = None
     he_reference_basis: str | None = None
-    #: How far the IHC density falls short of the H&E's, as a fraction. The guide
-    #: names 30% as the level at which this is a segmentation failure rather than
-    #: biology.
+    #: The H&E reference per mm2 of tissue, and its fields' tissue share.
+    he_density_per_tissue_mm2: float | None = None
+    he_tissue_share: float | None = None
+    #: How far the IHC density falls short of the H&E's, as a fraction - **per mm2
+    #: of tissue** on both sides since 6 October 2026 (P-03). Before that it was per
+    #: mm2 of sampled area, which counted glass and scanner fill as missing nuclei;
+    #: that figure is kept as `area_shortfall`. The guide names 30% as the level at
+    #: which this is a segmentation failure rather than biology.
     density_shortfall: float | None = None
+    area_shortfall: float | None = None
 
     seconds: float | None = None
     notes: list[str] = Field(default_factory=list)

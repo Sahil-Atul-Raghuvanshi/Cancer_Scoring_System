@@ -13,6 +13,8 @@ export interface NucleiCapability {
   version: string | null
   licence: string | null
   mpp: number | null
+  /** The configured detector: 'cellpose' (default since P-03) or 'instanseg'. */
+  engine: string | null
 }
 
 export interface NucleiRun {
@@ -57,6 +59,9 @@ export interface FieldOut {
   counted: number
   countedMm2: number
   densityPerMm2: number
+  /** Share of the counted area that is tissue; glass and scanner fill are not. */
+  tissueShare: number | null
+  densityPerTissueMm2: number | null
 }
 
 export interface RegionNuclei {
@@ -71,6 +76,8 @@ export interface RegionNuclei {
   counted: number
   densityPerMm2: number
   densityCv: number
+  tissueMm2: number | null
+  densityPerTissueMm2: number | null
   medianAreaUm2: number
   medianCircularity: number
 }
@@ -90,6 +97,9 @@ export interface ComparisonOut {
   instansegHaematoxylin: number
   instansegRgb: number
   watershedHaematoxylin: number
+  /** The detector that counts, and its count on this field (left-hand panel). */
+  engine: string
+  production: number | null
 }
 
 export interface NucleiReport {
@@ -99,6 +109,8 @@ export interface NucleiReport {
   state: NucleiState
   generatedAt: string
 
+  /** Which detector found these nuclei. Null on reports older than the choice (InstanSeg). */
+  engine: string | null
   modelName: string | null
   modelVersion: string | null
   modelLicence: string | null
@@ -112,6 +124,10 @@ export interface NucleiReport {
   counted: number
   sampledMm2: number
   densityPerMm2: number
+  /** Tissue inside the sampled squares, and nuclei per mm2 of it (P-03). */
+  tissueMm2: number | null
+  tissueShare: number | null
+  densityPerTissueMm2: number | null
   densityByMarker: Record<string, number>
 
   /**
@@ -123,8 +139,15 @@ export interface NucleiReport {
    */
   heDensityPerMm2: number | null
   heMedianAreaUm2: number | null
-  /** How far the IHC density falls short of the H&E's, as a fraction. */
+  heDensityPerTissueMm2: number | null
+  heTissueShare: number | null
+  /**
+   * How far the IHC density falls short of the H&E's, as a fraction - per mm2 of
+   * tissue on both sides since P-03; per mm2 of sampled area on older reports.
+   */
   densityShortfall: number | null
+  /** The old per-area figure, kept beside it. Null on older reports. */
+  areaShortfall: number | null
 
   seconds: number | null
   notes: string[]

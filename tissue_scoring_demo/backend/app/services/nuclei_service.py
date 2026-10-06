@@ -17,6 +17,13 @@ coordinates, inside regions that only exist for one (H&E, marker) pair, so a
 second marker of the same case is a different result rather than an overwrite -
 which is also what makes the cross-marker density check at the bottom possible.
 
+**Detector and denominator (P-03, 6 October 2026).** The nuclei come from
+`settings.nuclei_engine` - Cellpose by default, chosen on a benchmark of every
+alternative - and the check against the H&E is made per mm2 of *tissue* on both
+sides, so a field that lands on glass or scanner fill is not read as missed nuclei.
+The H&E reference itself stays on InstanSeg on the H&E photograph, the input P-21
+validated it on.
+
 **It refuses to run on an unconfirmed alignment.** Step 10 finishes with
 `confirmed = false` and says in its own README that nothing downstream should
 measure inside its regions until a person has looked. This is the first step
@@ -39,6 +46,7 @@ from app.common.imaging import optical_density
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.ingestion.slide_reader import open_slide
+from app.nuclei import cellpose_model
 from app.nuclei.model import ModelUnavailable
 from app.nuclei.model import load as load_model
 from app.pipeline.step13_nuclei_segmentation import overlay
@@ -88,6 +96,17 @@ class Job:
     finished_at: str | None = None
     duration: float | None = None
     error: str | None = None
+
+
+@dataclass(frozen=True)
+class HeReference:
+    """The H&E reference: per mm2 of field and per mm2 of tissue, and what it rests on."""
+
+    density: float | None = None
+    median_area: float | None = None
+    fields: int = 0
+    tissue_density: float | None = None
+    tissue_share: float | None = None
 
 
 class NucleiService:
@@ -146,7 +165,7 @@ class NucleiService:
 
         if not restart:
             existing = self._read_report(he_upload_id, ihc_upload_id)
-            if existing is not None and self._matches_alignment(existing, alignment):
+            if existing is not None and self._is_current(existing, alignment):
                 return NucleiRun(
                     he_upload_id=he_upload_id,
                     ihc_upload_id=ihc_upload_id,
@@ -156,11 +175,13 @@ class NucleiService:
                 )
             if existing is not None:
                 logger.info(
-                    "nuclei %s were segmented inside a previous alignment (%s, now %s); "
+                    "nuclei %s are not current (alignment %s, now %s; engine %s, now %s); "
                     "re-segmenting rather than reporting them as current",
                     self.key(he_upload_id, ihc_upload_id),
                     existing.alignment_generated_at,
                     alignment.generated_at,
+                    existing.engine or "instanseg",
+                    settings.nuclei_engine,
                 )
 
         key = self.key(he_upload_id, ihc_upload_id)
@@ -172,16 +193,20 @@ class NucleiService:
         return self._as_run(self._jobs[key])
 
     @staticmethod
-    def _matches_alignment(report: NucleiReport, alignment) -> bool:
-        """Whether `report` was segmented inside the alignment now on disk.
+    def _is_current(report: NucleiReport, alignment) -> bool:
+        """Whether `report` was segmented inside the alignment now on disk, by the
+        detector now configured.
 
-        A report with no stamp predates the field and is treated as not matching:
-        one wasted re-segmentation is a far smaller cost than measuring the wrong
-        regions, and unlike the wrong regions it is visible.
+        A report with no alignment stamp predates the field and is treated as not
+        matching: one wasted re-segmentation is a far smaller cost than measuring the
+        wrong regions, and unlike the wrong regions it is visible. A report with no
+        engine predates the choice and was InstanSeg; when the configured detector
+        differs, its nuclei are a different measurement and are not reused (P-15).
         """
         return (
             report.alignment_generated_at is not None
             and report.alignment_generated_at == alignment.generated_at
+            and (report.engine or "instanseg") == settings.nuclei_engine
         )
 
     def state(self, he_upload_id: str, ihc_upload_id: str) -> NucleiRun:
@@ -367,7 +392,15 @@ class NucleiService:
 
     def _build(self, he_upload_id: str, ihc_upload_id: str, job: Job) -> NucleiReport:
         alignment = self._require_alignment(he_upload_id, ihc_upload_id)
-        model = load_model()
+        engine = settings.nuclei_engine
+        if engine == "cellpose":
+            model = cellpose_model.load()
+        elif engine == "instanseg":
+            model = load_model()
+        else:
+            raise NucleiError(
+                f"settings.nuclei_engine is {engine!r}; it must be 'cellpose' or 'instanseg'."
+            )
 
         ihc_path = resolve_ready_path(upload_id=ihc_upload_id)
         reader = open_slide(ihc_path)
@@ -421,6 +454,7 @@ class NucleiService:
                         basis=basis,
                         base_mpp=base_mpp,
                         model_mpp=model.mpp,
+                        engine=engine,
                     )
                     segmented_fields.append(segmented)
                     self._write_field_images(he_upload_id, ihc_upload_id, region.rank, segmented)
@@ -435,34 +469,45 @@ class NucleiService:
                 self._write_nuclei(he_upload_id, ihc_upload_id, region.rank, segmented_fields)
 
                 if segmented_fields:
-                    comparisons.append(
-                        self._compare(
-                            he_upload_id,
-                            ihc_upload_id,
-                            region.rank,
-                            self._busiest(segmented_fields),
-                            reader=reader,
-                            white=white,
-                            basis=basis,
-                            base_mpp=base_mpp,
-                            model_mpp=model.mpp,
+                    # The comparison is for the screen and feeds no count, so it must
+                    # not be able to fail the pass - with Cellpose counting, it also
+                    # needs InstanSeg, which may not be installed.
+                    try:
+                        comparisons.append(
+                            self._compare(
+                                he_upload_id,
+                                ihc_upload_id,
+                                region.rank,
+                                self._busiest(segmented_fields),
+                                reader=reader,
+                                white=white,
+                                basis=basis,
+                                base_mpp=base_mpp,
+                                model_mpp=model.mpp,
+                            )
                         )
-                    )
+                    except Exception:  # noqa: BLE001 - a picture, not a measurement
+                        logger.warning("nuclei comparison for region %s skipped", region.rank,
+                                       exc_info=True)
 
             detected = sum(r.detected for r in regions)
             counted = sum(r.counted for r in regions)
             sampled = sum(r.sampled_mm2 for r in regions)
             density = counted / sampled if sampled > 0 else 0.0
+            tissue = sum(r.tissue_mm2 or 0.0 for r in regions)
+            tissue_density = counted / tissue if tissue > 0 else None
 
             job.message = "measuring the H&E reference density"
-            he_density, he_area, he_fields = self._he_reference(
-                he_upload_id, alignment, model_mpp=model.mpp
-            )
-            shortfall = (
-                round((he_density - density) / he_density, 3)
-                if he_density and he_density > 0
-                else None
-            )
+            reference = self._he_reference(he_upload_id, alignment, model_mpp=model.mpp)
+
+            def gap(he: float | None, ihc: float | None) -> float | None:
+                return round((he - ihc) / he, 3) if he and he > 0 and ihc is not None else None
+
+            # Per mm2 of tissue on both sides (P-03): the headline. The old per-area
+            # figure is kept beside it, so the two can be compared.
+            shortfall = gap(reference.tissue_density, tissue_density)
+            area_shortfall = gap(reference.density, density)
+            tissue_share = tissue / sampled if sampled > 0 else None
 
             return NucleiReport(
                 he_upload_id=he_upload_id,
@@ -471,6 +516,7 @@ class NucleiService:
                 state="ready",
                 generated_at=_now(),
                 alignment_generated_at=alignment.generated_at,
+                engine=engine,
                 model_name=str(model.manifest.get("name")),
                 model_version=str(model.manifest.get("version")),
                 model_licence=str(model.manifest.get("licence")),
@@ -482,16 +528,26 @@ class NucleiService:
                 counted=counted,
                 sampled_mm2=round(sampled, 4),
                 density_per_mm2=round(density, 1),
+                tissue_mm2=round(tissue, 5),
+                tissue_share=round(tissue_share, 3) if tissue_share is not None else None,
+                density_per_tissue_mm2=(
+                    round(tissue_density, 1) if tissue_density is not None else None
+                ),
                 density_by_marker=self._density_by_marker(
                     he_upload_id, alignment.marker, density
                 ),
-                he_density_per_mm2=he_density,
-                he_median_area_um2=he_area,
-                he_reference_fields=he_fields,
+                he_density_per_mm2=reference.density,
+                he_median_area_um2=reference.median_area,
+                he_reference_fields=reference.fields,
                 he_reference_basis="ruifrok_he",
+                he_density_per_tissue_mm2=reference.tissue_density,
+                he_tissue_share=reference.tissue_share,
                 density_shortfall=shortfall,
+                area_shortfall=area_shortfall,
                 seconds=round(time.monotonic() - job.started, 1),
-                notes=self._notes(regions, shortfall=shortfall),
+                notes=self._notes(
+                    regions, shortfall=shortfall, engine=engine, tissue_share=tissue_share
+                ),
             )
         finally:
             reader.close()
@@ -525,11 +581,14 @@ class NucleiService:
                 counted=f.counted,
                 counted_mm2=round(f.counted_mm2, 6),
                 density_per_mm2=round(f.density_per_mm2, 1),
+                tissue_share=round(f.tissue_share, 4),
+                density_per_tissue_mm2=round(f.density_per_tissue_mm2, 1),
             )
             for f in fields
         ]
 
         sampled_mm2 = sum(f.counted_mm2 for f in fields)
+        tissue_mm2 = sum(f.tissue_mm2 for f in fields)
         counted = sum(f.counted for f in fields)
         densities = np.array([f.density_per_mm2 for f in fields], dtype=np.float64)
         areas = np.array(
@@ -555,6 +614,8 @@ class NucleiService:
                 if densities.size and densities.mean() > 0
                 else 0.0
             ),
+            tissue_mm2=round(tissue_mm2, 5),
+            density_per_tissue_mm2=round(counted / tissue_mm2, 1) if tissue_mm2 > 0 else None,
             median_area_um2=round(float(np.median(areas)), 2) if areas.size else 0.0,
             median_circularity=round(float(np.median(circular)), 3) if circular.size else 0.0,
         )
@@ -617,14 +678,27 @@ class NucleiService:
         base_mpp: float,
         model_mpp: float,
     ) -> ComparisonOut:
-        """The same field, three ways, and the picture that makes the point."""
+        """The same field, several ways, and the picture that makes the point.
+
+        `reference` is the counting detector's field. The InstanSeg counts are its
+        two inputs (brown removed, brown left in), run here when InstanSeg is not the
+        detector doing the counting.
+        """
         watershed = segment_field(
             reader, reference.field, white=white, basis=basis,
             base_mpp=base_mpp, model_mpp=model_mpp, engine="watershed",
         )
         raw = segment_field(
             reader, reference.field, white=white, basis=basis,
-            base_mpp=base_mpp, model_mpp=model_mpp, remove_dab=False,
+            base_mpp=base_mpp, model_mpp=model_mpp, remove_dab=False, engine="instanseg",
+        )
+        haematoxylin = (
+            reference
+            if reference.engine == "instanseg"
+            else segment_field(
+                reader, reference.field, white=white, basis=basis,
+                base_mpp=base_mpp, model_mpp=model_mpp, engine="instanseg",
+            )
         )
 
         self._path(he_upload_id, ihc_upload_id, "compare", f"{rank}_watershed.png").write_bytes(
@@ -640,14 +714,16 @@ class NucleiService:
         return ComparisonOut(
             field_index=reference.field.index,
             region_rank=rank,
-            instanseg_haematoxylin=len(reference.nuclei),
+            instanseg_haematoxylin=len(haematoxylin.nuclei),
             instanseg_rgb=len(raw.nuclei),
             watershed_haematoxylin=len(watershed.nuclei),
+            engine=reference.engine,
+            production=len(reference.nuclei),
         )
 
     def _he_reference(
         self, he_upload_id: str, alignment, *, model_mpp: float
-    ) -> tuple[float | None, float | None, int]:
+    ) -> HeReference:
         """The same measurement on the H&E slide, inside the same regions.
 
         The number the IHC density has to be read against. Measured every run
@@ -665,20 +741,24 @@ class NucleiService:
         photograph, the segmenter's native input, and the per-nucleus stain values use
         the H&E basis.
 
-        Returns the density, the median nucleus area, and how many fields it used.
+        **InstanSeg, whatever the IHC detector (P-03).** The reference is measured with
+        the detector and input P-21 validated it on - InstanSeg on the H&E photograph -
+        so changing the IHC detector moves only one side of the comparison. And it is
+        counted per mm2 of tissue as well as per mm2 of field, like the IHC.
         """
+        empty = HeReference()
         if not alignment.regions:
-            return None, None, 0
+            return empty
 
         try:
             reader = open_slide(resolve_ready_path(upload_id=he_upload_id))
         except Exception:  # noqa: BLE001 - a missing H&E must not fail the step
-            return None, None, 0
+            return empty
 
         try:
             base_mpp = reader.mpp
             if not base_mpp:
-                return None, None, 0
+                return empty
             width, height = reader.dimensions
             white = calibration_service.white_point(he_upload_id)
             basis = ruifrok_he_basis()
@@ -687,6 +767,7 @@ class NucleiService:
             shares = allocate([region.area_mm2 for region in alignment.regions])
             counted = 0
             area_mm2 = 0.0
+            tissue_mm2 = 0.0
             used = 0
             areas: list[float] = []
             for region, share in zip(alignment.regions, shares, strict=True):
@@ -708,19 +789,27 @@ class NucleiService:
                     segmented = segment_field(
                         reader, sample, white=white, basis=basis,
                         base_mpp=base_mpp, model_mpp=model_mpp, remove_dab=False,
+                        engine="instanseg",
                     )
                     counted += segmented.counted
                     area_mm2 += segmented.counted_mm2
+                    tissue_mm2 += segmented.tissue_mm2
                     used += 1
                     areas.extend(n.area_um2 for n in segmented.nuclei if n.counted)
 
             if area_mm2 <= 0:
-                return None, None, used
+                return HeReference(fields=used)
             median = float(np.median(areas)) if areas else None
-            return round(counted / area_mm2, 1), (round(median, 2) if median else None), used
+            return HeReference(
+                density=round(counted / area_mm2, 1),
+                median_area=round(median, 2) if median else None,
+                fields=used,
+                tissue_density=round(counted / tissue_mm2, 1) if tissue_mm2 > 0 else None,
+                tissue_share=round(tissue_mm2 / area_mm2, 3),
+            )
         except Exception:  # noqa: BLE001 - the reference is a check, not the answer
             logger.warning("H&E reference density could not be measured", exc_info=True)
-            return None, None, 0
+            return empty
         finally:
             reader.close()
 
@@ -758,23 +847,46 @@ class NucleiService:
         return out
 
     @staticmethod
-    def _notes(regions: list[RegionNuclei], *, shortfall: float | None = None) -> list[str]:
+    def _notes(
+        regions: list[RegionNuclei],
+        *,
+        shortfall: float | None = None,
+        engine: str = "instanseg",
+        tissue_share: float | None = None,
+    ) -> list[str]:
         notes = [
             "Counts are an estimate from a sample, not a census: each region was "
             "segmented on a few fields spread across it, and every figure is "
             "printed beside the area it was measured over.",
-            "Nuclei were detected on the haematoxylin channel with the DAB removed. "
-            "Detecting on raw RGB would let the stain being measured decide where "
-            "cells are, which inflates the percentage by a route no later step can see.",
         ]
+        if engine == "cellpose":
+            notes.append(
+                "Nuclei were found by Cellpose's published nuclei model on the field in "
+                "grey, chosen on a benchmark of every alternative (P-03). It sees the "
+                "field as it is, brown included; the check against the H&E below is what "
+                "would show stained cells being found more readily than unstained ones."
+            )
+        else:
+            notes.append(
+                "Nuclei were detected on the haematoxylin channel with the DAB removed. "
+                "Detecting on raw RGB would let the stain being measured decide where "
+                "cells are, which inflates the percentage by a route no later step can see."
+            )
+        if tissue_share is not None and tissue_share < settings.nuclei_low_tissue_share:
+            notes.append(
+                f"Only {tissue_share:.0%} of the sampled area is tissue: the fields fell "
+                "mostly on glass or scanner fill. That is a question about where the "
+                "regions landed on this slide (alignment, region choice), not about "
+                "detection, and the densities rest on very little tissue."
+            )
         if shortfall is not None and shortfall >= 0.3:
             notes.append(
-                f"This slide yields {shortfall:.0%} fewer nuclei per mm2 than the case's "
-                "own H&E inside the same regions. Serial sections of one block hold the "
-                "same cells, so that gap is a segmentation failure rather than biology: "
-                "under heavy DAB the counterstain is too weak for nuclear boundaries to "
-                "survive deconvolution. Every nucleus missed here is a cell removed from "
-                "the denominator, which inflates the positive percentage."
+                f"This slide yields {shortfall:.0%} fewer nuclei per mm2 of tissue than the "
+                "case's own H&E inside the same regions. Serial sections of one block hold "
+                "the same cells, so that gap is a detection failure rather than biology. On "
+                "heavily stained sections the tumour nuclei can show only as pale holes in "
+                "the brown, with no counterstain, and no detector tested finds them (P-22). "
+                "Which way the missing cells move the percentage has not been measured."
             )
 
         worst = max((r.density_cv for r in regions), default=0.0)

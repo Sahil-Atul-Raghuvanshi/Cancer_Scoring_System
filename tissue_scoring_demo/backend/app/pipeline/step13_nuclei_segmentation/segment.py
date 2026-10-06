@@ -11,6 +11,16 @@ and 0.25 would be out of distribution. Those are different resolutions for
 different purposes - one is what the network was trained on, the other is what a
 person needs to judge an outline - and conflating them would quietly degrade the
 segmentation to make a caption true.
+
+**Which detector (P-03).** `settings.nuclei_engine` picks it. "cellpose" (the default
+since 6 October 2026) reads the field as inverted grey and never sees the DAB-removed
+render; "instanseg" is the earlier path, kept to reproduce old runs. "watershed" is
+the classical comparison the screen shows beside either.
+
+**Per mm2 of tissue (P-03).** Every field also measures how much of its counted
+area is tissue - stained *and* textured, so glass and the flat scanner fill do not
+count - so a density can be read per mm2 of tissue rather than per mm2 of a field
+that may have landed on glass.
 """
 
 from __future__ import annotations
@@ -19,6 +29,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from app.common.imaging import optical_density
 from app.core.config import settings
 from app.pipeline.step05_optical_density.tiles import read_tile
 
@@ -46,6 +57,11 @@ class SegmentedField:
     #: Level-0 pixels per pixel of `shown`.
     level0_scale: float
     counted_mm2: float
+    #: Share of the counted area (the field inside its border margin) that is
+    #: tissue - see `tissue_share`.
+    tissue_share: float = 1.0
+    #: Which detector produced `labels`.
+    engine: str = "instanseg"
 
     @property
     def counted(self) -> int:
@@ -54,6 +70,36 @@ class SegmentedField:
     @property
     def density_per_mm2(self) -> float:
         return self.counted / self.counted_mm2 if self.counted_mm2 > 0 else 0.0
+
+    @property
+    def tissue_mm2(self) -> float:
+        return self.counted_mm2 * self.tissue_share
+
+    @property
+    def density_per_tissue_mm2(self) -> float:
+        return self.counted / self.tissue_mm2 if self.tissue_mm2 > 0 else 0.0
+
+
+def tissue_share(rgb: np.ndarray, white, *, border_px: int) -> float:
+    """Share of the field inside its border margin that is tissue.
+
+    Tissue = optical-density sum above `nuclei_tissue_od` **and** grey-level standard
+    deviation above `nuclei_tissue_texture_sd` over a 9x9 window. The texture test is
+    what keeps the scanner-fill rectangle out: it is dark enough to pass on density,
+    but perfectly flat (measured: std exactly 0 on CAN_00267's fields), as is glass.
+    Measured over the counted interior only, because that is the area the count is
+    divided by.
+    """
+    from scipy import ndimage
+
+    od = optical_density(rgb.astype(np.float32), white).clip(0, None).sum(axis=-1)
+    grey = rgb.astype(np.float32).mean(axis=-1)
+    mean = ndimage.uniform_filter(grey, 9)
+    sd = np.sqrt(np.clip(ndimage.uniform_filter(grey * grey, 9) - mean * mean, 0, None))
+    tissue = (od > settings.nuclei_tissue_od) & (sd > settings.nuclei_tissue_texture_sd)
+    if border_px > 0 and min(tissue.shape) > 2 * border_px:
+        tissue = tissue[border_px:-border_px, border_px:-border_px]
+    return float(tissue.mean()) if tissue.size else 0.0
 
 
 def _white_field(white, field: Field, mpp: float):
@@ -80,13 +126,16 @@ def segment_field(
     base_mpp: float,
     model_mpp: float,
     remove_dab: bool | None = None,
-    engine: str = "instanseg",
+    engine: str | None = None,
 ) -> SegmentedField:
     """Read `field` from `reader` and return its nuclei.
 
-    `engine` is "instanseg" or "watershed". Both are shown the same pixels, which
-    is what makes the comparison on screen a comparison of methods.
+    `engine` is "cellpose", "instanseg" or "watershed"; None means
+    `settings.nuclei_engine`. InstanSeg and the watershed are shown the same pixels,
+    which is what makes the comparison on screen a comparison of methods. Cellpose
+    reads the raw field as inverted grey, and `shown` is that grey image.
     """
+    engine = engine or settings.nuclei_engine
     strip_dab = settings.nuclei_remove_dab if remove_dab is None else remove_dab
 
     tile = read_tile(
@@ -103,14 +152,22 @@ def segment_field(
     stain = haematoxylin_density(rgb, white_field, basis)
     shown = haematoxylin_only_rgb(rgb, white_field, basis) if strip_dab else rgb
 
-    if engine == "watershed":
+    if engine == "cellpose":
+        from app.nuclei import cellpose_model
+
+        grey = cellpose_model.inverted_grey(rgb).astype(np.uint8)
+        shown = np.repeat(grey[..., None], 3, axis=-1)
+        labels = cellpose_model.segment_array(rgb, mpp=tile.mpp)
+    elif engine == "watershed":
         from .watershed import segment as watershed_segment
 
         labels = watershed_segment(stain, mpp=tile.mpp)
-    else:
+    elif engine == "instanseg":
         from app.nuclei.model import segment_array
 
         labels = segment_array(shown)
+    else:
+        raise ValueError(f"unknown nuclei engine {engine!r}")
 
     nuclei = extract(
         labels,
@@ -135,7 +192,9 @@ def segment_field(
         counted_mm2=counted_area_mm2(
             size=tile.size, border_px=settings.nuclei_border_margin_px, mpp=tile.mpp
         ),
+        tissue_share=tissue_share(rgb, white_field, border_px=settings.nuclei_border_margin_px),
+        engine=engine,
     )
 
 
-__all__ = ["SegmentedField", "segment_field"]
+__all__ = ["SegmentedField", "segment_field", "tissue_share"]
