@@ -19,6 +19,9 @@ dist/
 # --- Large binary assets (kept out of git, live on disk) ---
 images/
 data/
+# ...but these two `data/` folders are source code, not storage.
+!backend/app/data/
+!frontend/src/features/pipeline/data/
 docs/*.pdf
 
 # --- OS ---
