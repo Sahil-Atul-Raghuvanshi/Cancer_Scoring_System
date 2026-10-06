@@ -67,7 +67,8 @@ def test_the_he_reference_samples_every_region_with_the_ihc_allocation(monkeypat
     seen_bases = set()
 
     def segment(reader, sample, *, white, basis, base_mpp, model_mpp, remove_dab=None,
-                engine=None):
+                engine=None, region_rings=None):
+        assert region_rings, "the H&E reference counts inside the region too (P-10)"
         seen_bases.add(basis.source)
         assert remove_dab is False, "the H&E is segmented on its own photograph"
         assert engine == "instanseg", "the reference stays on the detector P-21 validated"

@@ -577,6 +577,11 @@ class ScoreService:
                 "the denominator itself is in question."
             )
 
+        # **What step 11 left out (P-10).** A partial pass used to feed the score
+        # silently - the failed regions simply were not there - and nothing said how
+        # much of the invasive tumour the selected regions cover.
+        caveats.extend(self._region_coverage(he_upload_id))
+
         # Who chose the regions. Step 10 is a human gate; the batch run takes its
         # default rule (P-17), and a reader comparing against pathologists should know.
         if self._regions_chosen_by_machine(he_upload_id):
@@ -680,6 +685,7 @@ class ScoreService:
         "ALL CELLS IN THE REGION, NOT TUMOUR ONLY.",
         "THIN DENOMINATOR.",
         "DENOMINATOR INCOMPLETE.",
+        "REGIONS MISSING.",
         "WIDE INTERVAL.",
         "INTERVAL UNDERSTATED.",
     )
@@ -714,6 +720,34 @@ class ScoreService:
         except (OSError, ValueError):
             return None
         return bool(stored.get("trustworthy", True)), stored.get("trustReason")
+
+    @staticmethod
+    def _region_coverage(he_upload_id: str) -> list[str]:
+        """Caveats on step 11's coverage: a partial pass, and invasive area not scored."""
+        from app.services.roi_refinement_service import roi_refinement_service
+
+        try:
+            refined = roi_refinement_service.report(he_upload_id)
+        except Exception:  # noqa: BLE001 - no step 11 report means nothing to say here
+            return []
+        out: list[str] = []
+        if refined.state == "partial" or refined.failed:
+            out.append(
+                f"REGIONS MISSING. Step 11 completed {refined.completed} of "
+                f"{refined.selected} selected regions; the {refined.failed} that failed "
+                "are not in this score. Retry them on step 11 before reading the number "
+                "as the tumour's."
+            )
+        invasive = float(refined.invasive_mm2 or 0.0)
+        tiles = float(refined.tile_mm2 or 0.0)
+        if invasive > 0 and tiles < invasive * 0.9:
+            out.append(
+                f"PART OF THE TUMOUR NOT SELECTED. The selected regions cover "
+                f"{tiles:.2f} of the {invasive:.2f} mm2 step 8 called invasive "
+                f"({tiles / invasive:.0%}). The rest was not offered (too small) or not "
+                "ticked on step 10, and is not in this score."
+            )
+        return out
 
     @staticmethod
     def _regions_chosen_by_machine(he_upload_id: str) -> bool:

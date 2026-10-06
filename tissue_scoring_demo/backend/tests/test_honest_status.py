@@ -241,3 +241,28 @@ def test_unsampled_area_is_reported_without_changing_the_status(quiet):
     caveats = _caveats(_result(unsampled_regions=40, unsampled_area_mm2=1.5))
     assert any(c.startswith("PART OF THE ROI NOT SAMPLED.") for c in caveats)
     assert score_service._status(caveats)[0] == "measured"
+
+
+# --- P-10: step 11's coverage travels with the score ---------------------------
+
+
+def _refined(**fields):
+    base = dict(state="ready", completed=3, selected=3, failed=0, invasive_mm2=10.0, tile_mm2=9.5)
+    return SimpleNamespace(**{**base, **fields})
+
+
+def test_a_partial_step_11_makes_the_score_provisional(quiet, monkeypatch):
+    from app.services.roi_refinement_service import roi_refinement_service
+
+    monkeypatch.setattr(roi_refinement_service, "report", lambda he: _refined(state="partial", completed=2, failed=1))
+    caveats = _caveats()
+    status, reasons = score_service._status(caveats)
+    assert status == "provisional" and "REGIONS MISSING." in reasons
+
+
+def test_unselected_invasive_area_is_reported(quiet, monkeypatch):
+    from app.services.roi_refinement_service import roi_refinement_service
+
+    monkeypatch.setattr(roi_refinement_service, "report", lambda he: _refined(tile_mm2=4.0))
+    caveats = _caveats()
+    assert any(c.startswith("PART OF THE TUMOUR NOT SELECTED.") and "40%" in c for c in caveats)

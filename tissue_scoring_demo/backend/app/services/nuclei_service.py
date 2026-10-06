@@ -455,6 +455,7 @@ class NucleiService:
                         base_mpp=base_mpp,
                         model_mpp=model.mpp,
                         engine=engine,
+                        region_rings=region.ihc_rings,
                     )
                     segmented_fields.append(segmented)
                     self._write_field_images(he_upload_id, ihc_upload_id, region.rank, segmented)
@@ -789,7 +790,7 @@ class NucleiService:
                     segmented = segment_field(
                         reader, sample, white=white, basis=basis,
                         base_mpp=base_mpp, model_mpp=model_mpp, remove_dab=False,
-                        engine="instanseg",
+                        engine="instanseg", region_rings=region.he_rings,
                     )
                     counted += segmented.counted
                     area_mm2 += segmented.counted_mm2

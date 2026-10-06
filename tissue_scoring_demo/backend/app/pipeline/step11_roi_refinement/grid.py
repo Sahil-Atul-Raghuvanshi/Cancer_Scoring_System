@@ -77,7 +77,7 @@ def build_for(upload_id: str, *, slide_size: tuple[int, int], base_mpp: float) -
         slide_size=slide_size,
         size=beetle.window_px(settings.roi_refinement_fov_um),
         mpp=beetle.SPACING,
-        overlap=0.0,
+        overlap=settings.roi_refinement_overlap,
         max_windows=settings.tissue_type_max_windows,
         tissue=footprint.mask,
         mask_mpp=footprint.mpp,

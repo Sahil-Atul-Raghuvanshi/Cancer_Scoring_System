@@ -121,6 +121,64 @@ def restrict(grid: WindowGrid, bounds: Bbox) -> WindowGrid:
     return replace(grid, inside=wanted)
 
 
+#: Grid, in microns, a territory is grown on. Coarse for the reason `contours.GROUP_GRID_UM`
+#: gives: a 224 um dilation at the mask's own 1 um/px over a 20 mm region is a
+#: half-gigapixel distance transform.
+TERRITORY_GRID_UM = 8.0
+
+
+def territory(
+    *,
+    shape: tuple[int, int],
+    origin: tuple[int, int],
+    mask_mpp: float,
+    base_mpp: float,
+    own: list[list[list[float]]],
+    earlier: list[list[list[list[float]]]],
+    pad_um: float,
+) -> np.ndarray:
+    """The mask pixels this region may claim (P-10).
+
+    BEETLE runs over the region's whole padded bounding box, and everything it calls
+    invasive in that box used to be traced as this region's - so a slide-spanning
+    candidate's box swept in tumour nobody selected, and two neighbouring boxes, which
+    overlap by up to twice the pad, traced the same pixels into two regions that were
+    then sampled and weighted twice.
+
+    A region's territory is its own tile outline (`own`, level-0 rings) grown by the
+    pad, minus the territory of every region ranked above it (`earlier`). Ranks decide
+    ties, so each pixel has exactly one owner and the result does not depend on which
+    region happened to run first.
+    """
+    from PIL import Image, ImageDraw
+    from scipy import ndimage
+
+    factor = max(1, int(round(TERRITORY_GRID_UM / max(mask_mpp, 1e-9))))
+    height, width = shape
+    rows, cols = -(-height // factor), -(-width // factor)
+    to_grid = base_mpp / (mask_mpp * factor)
+    radius = max(1, int(np.ceil(pad_um / (mask_mpp * factor))))
+
+    def grown(rings: list[list[list[float]]]) -> np.ndarray:
+        canvas = Image.new("1", (cols, rows), 0)
+        draw = ImageDraw.Draw(canvas)
+        for index, ring in enumerate(rings):
+            if len(ring) >= 3:
+                draw.polygon(
+                    [((x - origin[0]) * to_grid, (y - origin[1]) * to_grid) for x, y in ring],
+                    fill=0 if index else 1,
+                )
+        cells = np.asarray(canvas, dtype=bool)
+        if not cells.any():
+            return cells
+        return ndimage.distance_transform_edt(~cells) <= radius
+
+    mine = grown(own)
+    for rings in earlier:
+        mine &= ~grown(rings)
+    return np.repeat(np.repeat(mine, factor, axis=0), factor, axis=1)[:height, :width]
+
+
 def window_count(grid: WindowGrid, bounds: Bbox) -> int:
     """How many forward-pass windows this candidate costs, without building anything.
 
@@ -134,6 +192,8 @@ def window_count(grid: WindowGrid, bounds: Bbox) -> int:
 
 
 __all__ = [
+    "TERRITORY_GRID_UM",
+    "territory",
     "Bbox",
     "RefinementGeometryError",
     "core_bounds",

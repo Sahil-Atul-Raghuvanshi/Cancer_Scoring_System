@@ -1088,6 +1088,11 @@ class Settings(BaseSettings):
     # middle of the four and the one this project measured the branch on.
     roi_refinement_fov_um: float = 224.0
 
+    # Overlap between neighbouring refinement windows, as a share of the window.
+    # Each window writes only its central core, so overlap decides how far from a
+    # window's edge every written pixel is - see `step11_roi_refinement/grid.py`.
+    roi_refinement_overlap: float = 0.0
+
     # Resolution the refined mask is kept at, in microns per pixel. BEETLE
     # answers at 0.5; the slide-wide pass reduces to 4.0 because a section at
     # 0.5 um/px is 3.2 gigapixels. A region is not a section - a 5 mm2 focus at
@@ -1109,6 +1114,27 @@ class Settings(BaseSettings):
     # one tumour boundary into four hundred rings, every one of which would be
     # densified, warped by VALIS and drawn.
     roi_refinement_min_component_mm2: float = 0.005
+
+    # Invasive pixels closer together than this, in microns, are joined into one area
+    # before specks are dropped (P-11). A tumour that infiltrates as single cells
+    # reaches this step as a scatter of nucleus-sized dots, every one a speck, and
+    # CAN_00267's regions came back empty that way. 0 turns the grouping off.
+    #
+    # 40 um, measured on three cases' full-resolution class maps: CAN_00267 kept
+    # 0.014 -> 0.48 mm2 and CAN_00251 0.40 -> 2.27, where the tumour is scattered;
+    # CAN_00270, where BEETLE already traced solid tumour, 1.55 -> 2.14 mm2 with its
+    # 44 fragments merging into 19. At 60-100 um the solid case keeps growing into
+    # the stroma around it; at 20 um the scattered cases stay mostly empty.
+    roi_refinement_group_um: float = 40.0
+
+    # Where each selected region's scored outline comes from (P-10, P-11).
+    #   "step9"   step 9's scoring mask - in-situ carve-out, smoothing, 0.25 mm2 minimum -
+    #             inside the region's own territory. No BEETLE pass.
+    #   "beetle"  BEETLE's pixel refinement, with grouping and territories.
+    # step9 by measurement against OncoStem's outlines (CAN_00303, CAN_00270), where it
+    # beat every BEETLE variant on precision-weighted F (0.91 / 0.79 vs at best 0.89 /
+    # 0.77) and put half as much of its area inside the DCIS outline.
+    roi_refinement_source: str = "step9"
     roi_refinement_min_hole_mm2: float = 0.005
 
     # Douglas-Peucker tolerance applied to a traced boundary, in microns. The

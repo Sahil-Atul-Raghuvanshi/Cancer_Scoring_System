@@ -25,7 +25,7 @@ that may have landed on glass.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -80,7 +80,41 @@ class SegmentedField:
         return self.counted / self.tissue_mm2 if self.tissue_mm2 > 0 else 0.0
 
 
-def tissue_share(rgb: np.ndarray, white, *, border_px: int) -> float:
+def region_mask(rings, field: Field, *, size: int, level0_scale: float) -> np.ndarray:
+    """Which of the field's own pixels lie inside the region (P-10).
+
+    A field is accepted when 35 % of it is inside the region, so up to 65 % of what it
+    shows can be stroma, in-situ disease or normal tissue beside the tumour - and every
+    nucleus in it used to be counted. Drawn on the field's grid, from the same level-0
+    rings the field was chosen with: ring 0 filled, every later ring cut out, the
+    convention steps 9-12 all use.
+    """
+    from PIL import Image, ImageDraw
+
+    canvas = Image.new("1", (size, size), 0)
+    draw = ImageDraw.Draw(canvas)
+    scale = 1.0 / max(level0_scale, 1e-9)
+    for index, ring in enumerate(rings or []):
+        if len(ring) >= 3:
+            draw.polygon(
+                [((x - field.x) * scale, (y - field.y) * scale) for x, y in ring],
+                fill=0 if index else 1,
+            )
+    return np.asarray(canvas, dtype=bool)
+
+
+def _interior(shape: tuple[int, int], border_px: int) -> np.ndarray:
+    inner = np.zeros(shape, dtype=bool)
+    if border_px > 0 and min(shape) > 2 * border_px:
+        inner[border_px:-border_px, border_px:-border_px] = True
+    else:
+        inner[:] = True
+    return inner
+
+
+def tissue_share(
+    rgb: np.ndarray, white, *, border_px: int, within: np.ndarray | None = None
+) -> float:
     """Share of the field inside its border margin that is tissue.
 
     Tissue = optical-density sum above `nuclei_tissue_od` **and** grey-level standard
@@ -97,9 +131,10 @@ def tissue_share(rgb: np.ndarray, white, *, border_px: int) -> float:
     mean = ndimage.uniform_filter(grey, 9)
     sd = np.sqrt(np.clip(ndimage.uniform_filter(grey * grey, 9) - mean * mean, 0, None))
     tissue = (od > settings.nuclei_tissue_od) & (sd > settings.nuclei_tissue_texture_sd)
-    if border_px > 0 and min(tissue.shape) > 2 * border_px:
-        tissue = tissue[border_px:-border_px, border_px:-border_px]
-    return float(tissue.mean()) if tissue.size else 0.0
+    counted = _interior(tissue.shape, border_px)
+    if within is not None:
+        counted &= within
+    return float(tissue[counted].mean()) if counted.any() else 0.0
 
 
 def _white_field(white, field: Field, mpp: float):
@@ -127,6 +162,7 @@ def segment_field(
     model_mpp: float,
     remove_dab: bool | None = None,
     engine: str | None = None,
+    region_rings: list | None = None,
 ) -> SegmentedField:
     """Read `field` from `reader` and return its nuclei.
 
@@ -134,6 +170,10 @@ def segment_field(
     `settings.nuclei_engine`. InstanSeg and the watershed are shown the same pixels,
     which is what makes the comparison on screen a comparison of methods. Cellpose
     reads the raw field as inverted grey, and `shown` is that grey image.
+
+    `region_rings`, when given, are the region's level-0 rings: only nuclei whose
+    centre is inside them are counted, and the counted area and tissue share are
+    measured over the same inside part of the field (P-10).
     """
     engine = engine or settings.nuclei_engine
     strip_dab = settings.nuclei_remove_dab if remove_dab is None else remove_dab
@@ -180,6 +220,27 @@ def segment_field(
         min_area_um2=settings.nuclei_min_area_um2,
     )
 
+    scale = tile.span / max(1, tile.size)
+    border = settings.nuclei_border_margin_px
+    within = (
+        region_mask(region_rings, field, size=tile.size, level0_scale=scale)
+        if region_rings
+        else None
+    )
+    counted_mm2 = counted_area_mm2(size=tile.size, border_px=border, mpp=tile.mpp)
+    if within is not None:
+        inside = within & _interior(within.shape, border)
+        counted_mm2 = float(inside.sum()) * (tile.mpp / 1000.0) ** 2
+
+        def is_inside(nucleus) -> bool:
+            col = int((nucleus.x - field.x) / scale)
+            row = int((nucleus.y - field.y) / scale)
+            return 0 <= row < within.shape[0] and 0 <= col < within.shape[1] and within[row, col]
+
+        nuclei = [
+            n if not n.counted or is_inside(n) else replace(n, counted=False) for n in nuclei
+        ]
+
     return SegmentedField(
         field=field,
         shown=shown,
@@ -189,12 +250,10 @@ def segment_field(
         nuclei=nuclei,
         mpp=tile.mpp,
         level0_scale=tile.span / max(1, tile.size),
-        counted_mm2=counted_area_mm2(
-            size=tile.size, border_px=settings.nuclei_border_margin_px, mpp=tile.mpp
-        ),
-        tissue_share=tissue_share(rgb, white_field, border_px=settings.nuclei_border_margin_px),
+        counted_mm2=counted_mm2,
+        tissue_share=tissue_share(rgb, white_field, border_px=border, within=within),
         engine=engine,
     )
 
 
-__all__ = ["SegmentedField", "segment_field", "tissue_share"]
+__all__ = ["SegmentedField", "region_mask", "segment_field", "tissue_share"]

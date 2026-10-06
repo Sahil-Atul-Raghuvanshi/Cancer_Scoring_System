@@ -78,6 +78,61 @@ class RefinedRegion:
         return max(0, len(self.rings) - 1)
 
 
+#: Resolution, in microns, the grouping step works at. Coarse on purpose: it answers
+#: "are these invasive pixels within a few tens of microns of each other", and a closing
+#: at the mask's own 1 um/px on an 18,000 x 20,000 region is the memory blow-up `clean`
+#: was rewritten to avoid. The fine mask still decides the final pixels.
+GROUP_GRID_UM = 5.0
+
+
+def group(
+    mask: np.ndarray, *, code: int, exclude: tuple[int, ...], mask_mpp: float, gap_um: float
+) -> np.ndarray:
+    """`code`'s pixels, with gaps up to `gap_um` between them bridged (P-11).
+
+    **Why a region needs this.** BEETLE labels pixels, and in a tumour that infiltrates as
+    single cells or thin cords - CAN_00267's is one - the invasive class arrives as a
+    scatter of dots a nucleus wide. Every dot is far below `min_component_mm2`, so the
+    speck filter deleted all of them and the region came back empty: 0.7 % of the tile
+    area kept on that case, scored over 1-73 cells. The cells were found; the outline
+    step threw them away. A scoring region is the tissue the tumour occupies, cells and
+    the stroma between them, so dots within `gap_um` of each other are joined into one
+    area before specks are judged.
+
+    A morphological closing - grow by half the gap, shrink back - computed on a 5 um grid
+    and then restricted, at the mask's own resolution, to pixels that are not in
+    `exclude`. That restriction is what keeps the bridge honest: glass, unrun windows and
+    in-situ disease inside the closed area become holes, and Rule 5's exclusion of in-situ
+    carcinoma survives the grouping. On a solid tumour the closing changes almost nothing,
+    because there are no gaps to bridge.
+    """
+    hits = np.asarray(mask) == code
+    if gap_um <= 0 or not hits.any():
+        return hits
+
+    factor = max(1, int(round(GROUP_GRID_UM / max(float(mask_mpp), 1e-9))))
+    height, width = hits.shape
+    rows, cols = -(-height // factor), -(-width // factor)
+    padded = np.zeros((rows * factor, cols * factor), dtype=bool)
+    padded[:height, :width] = hits
+    coarse = padded.reshape(rows, factor, cols, factor).any(axis=(1, 3))
+    del padded
+
+    radius = max(1, int(np.ceil(gap_um / 2.0 / (factor * float(mask_mpp)))))
+    yy, xx = np.ogrid[-radius : radius + 1, -radius : radius + 1]
+    disk = (yy * yy + xx * xx) <= radius * radius
+    # Padded before closing so a tumour touching the canvas edge is not eroded by it.
+    closed = ndimage.binary_closing(
+        np.pad(coarse, radius), structure=disk
+    )[radius:-radius, radius:-radius]
+
+    grouped = np.repeat(np.repeat(closed, factor, axis=0), factor, axis=1)[:height, :width]
+    allowed = ~np.isin(np.asarray(mask), np.asarray(exclude, dtype=np.asarray(mask).dtype))
+    np.logical_and(grouped, allowed, out=grouped)
+    np.logical_or(grouped, hits, out=grouped)
+    return grouped
+
+
 def clean(
     binary: np.ndarray, *, min_component_px: int, min_hole_px: int
 ) -> list[tuple[np.ndarray, tuple[int, int]]]:
@@ -215,6 +270,8 @@ def regions(
     min_component_mm2: float,
     min_hole_mm2: float,
     simplify_um: float,
+    group_um: float = 0.0,
+    exclude: tuple[int, ...] = (),
 ) -> list[RefinedRegion]:
     """Every piece of `code` in `mask`, as simplified polygons in H&E level-0 pixels.
 
@@ -240,7 +297,7 @@ def regions(
 
     out: list[RefinedRegion] = []
     for component, origin_rc in clean(
-        np.asarray(mask) == code,
+        group(mask, code=code, exclude=exclude, mask_mpp=mask_mpp, gap_um=group_um),
         min_component_px=min_component_px,
         min_hole_px=min_hole_px,
     ):
@@ -273,4 +330,4 @@ def regions(
     return out
 
 
-__all__ = ["RefinedRegion", "clean", "regions", "to_level0"]
+__all__ = ["GROUP_GRID_UM", "RefinedRegion", "clean", "group", "regions", "to_level0"]

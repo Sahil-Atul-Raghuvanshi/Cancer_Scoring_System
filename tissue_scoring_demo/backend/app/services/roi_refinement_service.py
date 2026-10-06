@@ -64,6 +64,9 @@ from app.services.upload_service import resolve_ready_path
 
 logger = get_logger(__name__)
 
+#: Grid, in microns, step 9's mask is rasterised on when it is the region source.
+STEP9_GRID_UM = 4.0
+
 
 #: Most windows one poll hands back for painting.
 #:
@@ -200,6 +203,9 @@ class RoiRefinementService:
             and float(stored.get("padUm") or 0) == float(settings.roi_refinement_pad_um)
             and float(stored.get("fieldOfViewUm") or 0)
             == float(settings.roi_refinement_fov_um)
+            and float(stored.get("overlap") or 0) == float(settings.roi_refinement_overlap)
+            and float(stored.get("groupUm") or 0) == float(settings.roi_refinement_group_um)
+            and (stored.get("source") or "beetle") == settings.roi_refinement_source
         )
 
     # --- the job ------------------------------------------------------------
@@ -431,6 +437,10 @@ class RoiRefinementService:
         # `app.pipeline.runner` imports every step at start-up.
         from app.pipeline.step08_tissue_type_segmentation import beetle, pixels
 
+        if settings.roi_refinement_source == "step9":
+            self._run_from_step9(job, queued, path=path, report=report)
+            return
+
         try:
             loaded = beetle.load(
                 settings.roi_refinement_fov_um,
@@ -480,6 +490,14 @@ class RoiRefinementService:
                     class_names=beetle.PIXEL_CLASSES,
                     palette=palette,
                     legend=legend,
+                    # Every selected region ranked above this one, whether or not it is
+                    # in this pass: ownership is a property of the selection, so a retry
+                    # of one region claims exactly what it claimed the first time.
+                    earlier=[
+                        one.rings
+                        for one in report.candidates
+                        if one.roi_id in set(report.selected) and one.index < candidate.index
+                    ],
                 )
                 job.done += 1
 
@@ -492,6 +510,193 @@ class RoiRefinementService:
         job.paint = None
         job.painted = []
         job.painted_masks = []
+
+    def _run_from_step9(self, job: Job, queued: list, *, path: Any, report: Any) -> None:
+        """Each selected region's share of step 9's mask, with no BEETLE pass (P-10/P-11).
+
+        **Why this is the default.** Scored against OncoStem's own outlines on the two
+        cases they drew cleanly, step 9's mask beat every BEETLE variant: precision /
+        recall 97 / 74 % against BEETLE's 99 / 44 % on CAN_00303, and 78 / 82 % against
+        63 / 49 % on CAN_00270 - where BEETLE also put 27 % of its area inside the DCIS
+        outline against step 9's 12 %. Step 9's mask carries the in-situ carve-out and
+        the smoothing, which BEETLE's per-window in-situ calls could not match, and it
+        costs nothing to compute. BEETLE stays available as
+        `roi_refinement_source = "beetle"`.
+
+        Each region takes the part of step 9's mask inside its own territory - its tile
+        outline grown by the pad, less higher-ranked regions' - so no pixel is claimed
+        twice and no unselected tumour is swept in.
+        """
+        from app.services.roi_service import roi_service
+
+        try:
+            mask_report = roi_service.report(job.upload_id)
+        except Exception as exc:  # noqa: BLE001 - any failure here is "step 9 not built"
+            raise RefinementError(
+                "step 9 has not built this slide's scoring mask, and step 11 takes each "
+                "region's share of it. Run step 9 first."
+            ) from exc
+
+        selected = set(report.selected)
+        with open_slide(path) as reader:
+            base_mpp = float(reader.mpp or 0.0)
+            slide_width, slide_height = reader.dimensions
+            for candidate in queued:
+                if job.cancelling:
+                    raise RunCancelled(f"stopped after {job.done} of {job.total} regions")
+                job.current = candidate.roi_id
+                job.message = f"{candidate.roi_id}: taking its share of step 9's mask"
+                self._region_from_step9(
+                    job,
+                    candidate,
+                    row=self._row(job, candidate.roi_id),
+                    reader=reader,
+                    mask_rings=[region.rings for region in mask_report.regions],
+                    base_mpp=base_mpp,
+                    slide_width=slide_width,
+                    slide_height=slide_height,
+                    key=report.class_map_key,
+                    earlier=[
+                        one.rings
+                        for one in report.candidates
+                        if one.roi_id in selected and one.index < candidate.index
+                    ],
+                )
+                job.done += 1
+
+        job.state = "ready"
+        job.message = "complete"
+        job.current = None
+        self._finalise(job.upload_id, tuple(report.selected))
+
+    def _region_from_step9(
+        self,
+        job: Job,
+        candidate: RoiCandidateModel,
+        *,
+        row: dict[str, Any],
+        reader: Any,
+        mask_rings: list,
+        base_mpp: float,
+        slide_width: int,
+        slide_height: int,
+        key: str | None,
+        earlier: list,
+    ) -> None:
+        """One region from step 9's mask: rasterise, keep its territory, trace."""
+        from PIL import Image, ImageDraw
+
+        started = time.monotonic()
+        directory = self._region_dir(job.upload_id, candidate.roi_id)
+        directory.mkdir(parents=True, exist_ok=True)
+        box = (
+            candidate.x,
+            candidate.y,
+            candidate.x + candidate.width,
+            candidate.y + candidate.height,
+        )
+        padded = crop_tools.padded_box(
+            box,
+            pad_um=settings.roi_refinement_pad_um,
+            base_mpp=base_mpp,
+            slide_width=slide_width,
+            slide_height=slide_height,
+        )
+        # Step 9's rings follow whole step-8 windows, so a few microns per pixel loses
+        # nothing and keeps a 20 mm region's canvas small.
+        mpp = max(float(settings.roi_refinement_mask_mpp), STEP9_GRID_UM)
+        to_grid = base_mpp / mpp
+        width = max(1, int(np.ceil((padded[2] - padded[0]) * to_grid)))
+        height = max(1, int(np.ceil((padded[3] - padded[1]) * to_grid)))
+        record: dict[str, Any] = {
+            "roiId": candidate.roi_id,
+            "index": candidate.index,
+            "slideId": job.upload_id,
+            "classMapKey": key,
+            "state": "tracing",
+            "source": "step9",
+            "cropX": padded[0],
+            "cropY": padded[1],
+            "cropWidth": padded[2] - padded[0],
+            "cropHeight": padded[3] - padded[1],
+            "padUm": settings.roi_refinement_pad_um,
+            "maskMpp": settings.roi_refinement_mask_mpp,
+            "fieldOfViewUm": settings.roi_refinement_fov_um,
+            "overlap": settings.roi_refinement_overlap,
+            "groupUm": settings.roi_refinement_group_um,
+            "baseMpp": base_mpp,
+            "tileRings": [[list(vertex) for vertex in ring] for ring in candidate.rings],
+            "tileAreaMm2": candidate.area_mm2,
+            "windows": 0,
+        }
+        row["state"] = "tracing"
+        try:
+            self._render_before(job.upload_id, candidate, reader=reader, box=padded)
+            inside = np.zeros((height, width), dtype=bool)
+            for rings in mask_rings:
+                canvas = Image.new("1", (width, height), 0)
+                draw = ImageDraw.Draw(canvas)
+                for index, ring in enumerate(rings):
+                    if len(ring) >= 3:
+                        draw.polygon(
+                            [((x - padded[0]) * to_grid, (y - padded[1]) * to_grid) for x, y in ring],
+                            fill=0 if index else 1,
+                        )
+                inside |= np.asarray(canvas, dtype=bool)
+            claim = crop_tools.territory(
+                shape=inside.shape,
+                origin=(padded[0], padded[1]),
+                mask_mpp=mpp,
+                base_mpp=base_mpp,
+                own=candidate.rings,
+                earlier=earlier,
+                pad_um=settings.roi_refinement_pad_um,
+            )
+            # BEETLE's codes, so the stored panel and the tracer read it like any other:
+            # 3 where step 9 scores, 1 ("not tumour") elsewhere in the box.
+            mask = np.where(inside & claim, np.uint8(3), np.uint8(1))
+            traced = contours.regions(
+                mask,
+                code=3,
+                origin=(padded[0], padded[1]),
+                mask_mpp=mpp,
+                base_mpp=base_mpp,
+                slide_width=slide_width,
+                slide_height=slide_height,
+                min_component_mm2=settings.roi_refinement_min_component_mm2,
+                min_hole_mm2=settings.roi_refinement_min_hole_mm2,
+                simplify_um=settings.roi_refinement_simplify_um,
+            )
+            pieces = [piece.rings for piece in traced]
+            piece_areas = [piece.area_mm2 for piece in traced]
+            area_mm2 = round(sum(piece_areas), 5)
+            self._render_region(
+                job.upload_id, candidate, reader=reader, box=padded, pieces=pieces, mask=mask
+            )
+            record.update(
+                state="complete",
+                pieces=pieces,
+                pieceAreasMm2=piece_areas,
+                focusCount=len(traced),
+                holes=sum(piece.holes for piece in traced),
+                areaMm2=area_mm2,
+                keptShare=round(area_mm2 / candidate.area_mm2, 4) if candidate.area_mm2 else 0.0,
+                maskWidth=width,
+                maskHeight=height,
+                classShare={},
+                seconds=round(time.monotonic() - started, 2),
+                error=None,
+            )
+            row["state"] = "complete"
+        except Exception as failure:  # noqa: BLE001 - one region must not stop the pass
+            logger.exception("step 9 region for %s failed", candidate.roi_id)
+            record.update(
+                state="failed",
+                error=f"{type(failure).__name__}: {failure}",
+                seconds=round(time.monotonic() - started, 2),
+            )
+            row["state"] = "failed"
+        self._write_json(directory / "metadata.json", record)
 
     @staticmethod
     def _row(job: Job, roi_id: str) -> dict[str, Any]:
@@ -534,6 +739,7 @@ class RoiRefinementService:
         class_names: tuple[str, ...],
         palette: list[str],
         legend: list[str],
+        earlier: list[list[list[list[float]]]] | None = None,
     ) -> None:
         """One region, end to end, writing its own directory whether or not it worked.
 
@@ -573,6 +779,9 @@ class RoiRefinementService:
             "padUm": settings.roi_refinement_pad_um,
             "maskMpp": settings.roi_refinement_mask_mpp,
             "fieldOfViewUm": settings.roi_refinement_fov_um,
+            "overlap": settings.roi_refinement_overlap,
+            "groupUm": settings.roi_refinement_group_um,
+            "source": "beetle",
             "baseMpp": base_mpp,
             "tileRings": [[list(vertex) for vertex in ring] for ring in candidate.rings],
             "tileAreaMm2": candidate.area_mm2,
@@ -670,8 +879,25 @@ class RoiRefinementService:
             job.message = f"{candidate.roi_id}: tracing the boundary"
             record["state"] = "tracing"
             row["state"] = "tracing"
+
+            # Only this region's own territory is traced (P-10): its tile outline grown by
+            # the pad, less what higher-ranked regions own. Outside it is marked as not
+            # run, so neither the speck filter nor the grouping can claim it.
+            from app.pipeline.step08_tissue_type_segmentation.pixels import OUTSIDE
+
+            claim = crop_tools.territory(
+                shape=result.mask.shape,
+                origin=result.mask_origin,
+                mask_mpp=result.mask_mpp,
+                base_mpp=base_mpp,
+                own=candidate.rings,
+                earlier=list(earlier or []),
+                pad_um=settings.roi_refinement_pad_um,
+            )
+            owned = np.where(claim, result.mask, np.uint8(OUTSIDE))
+
             traced = contours.regions(
-                result.mask,
+                owned,
                 code=scored_code,
                 origin=result.mask_origin,
                 mask_mpp=result.mask_mpp,
@@ -681,6 +907,10 @@ class RoiRefinementService:
                 min_component_mm2=settings.roi_refinement_min_component_mm2,
                 min_hole_mm2=settings.roi_refinement_min_hole_mm2,
                 simplify_um=settings.roi_refinement_simplify_um,
+                group_um=settings.roi_refinement_group_um,
+                # Never bridged into: glass, windows that did not run, and in-situ
+                # disease, which Rule 5 keeps out of the score.
+                exclude=_never_grouped(),
             )
 
             # Grouped, never flattened: each focus keeps its own outer ring, its own
@@ -995,6 +1225,18 @@ class RoiRefinementService:
                 "no panels for this slide yet - no selected region has finished refining"
             )
         return path.read_bytes()
+
+
+def _never_grouped() -> tuple[int, ...]:
+    """BEETLE codes step 11's grouping must not bridge into (P-11): glass, in-situ
+    disease, and pixels no window ran on. Imported lazily for the reason `_run` gives."""
+    from app.pipeline.step08_tissue_type_segmentation import beetle, pixels
+
+    return (
+        beetle.GLASS_CODE,
+        beetle.PIXEL_CLASSES.index("non_invasive_epithelium"),
+        pixels.OUTSIDE,
+    )
 
 
 def _class_share(result: Any, class_names: tuple[str, ...]) -> dict[str, float]:
