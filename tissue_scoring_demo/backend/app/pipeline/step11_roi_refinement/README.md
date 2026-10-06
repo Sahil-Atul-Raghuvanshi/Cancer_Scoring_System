@@ -10,6 +10,41 @@ comes out is the invasive-tumour mask every later step measures inside.
 | Input | Step 10's selection; step 8's window grid and its gates; the H&E slide |
 | Output | `refined.json` - one polygon-with-holes per focus, in H&E level-0 pixels - plus a before/after picture per region |
 
+## Where the region comes from (P-10, P-11, October 2026)
+
+`roi_refinement_source` picks it, and **the default is `"step9"`, not BEETLE.**
+
+- `"step9"` - each selected region's share of step 9's scoring mask (in-situ carve-out,
+  smoothing, 0.25 mm2 minimum), inside the region's own territory. No network runs; a
+  case takes seconds.
+- `"beetle"` - the per-pixel refinement this README describes below.
+
+Chosen by measurement against OncoStem's own QuPath outlines (precision / recall against
+the pathologist's invasive tumour):
+
+| Case | Step 9 mask | BEETLE as previously scored | BEETLE + 40 um grouping |
+| --- | --- | --- | --- |
+| CAN_00303 | 97 / 74 % | 99 / 44 % | 99 / 55 % |
+| CAN_00270 | 78 / 82 %, 12 % in DCIS | 63 / 49 %, **27 % in DCIS** | 60 / 59 %, 27 % in DCIS |
+
+BEETLE decides in-situ vs invasive per window, and on a solid mass the answer flips
+between whole windows (a checkerboard). Wider windows (448 um) and half-overlapping ones
+(256 um, 50 %) did not change the split and cost 2-3x, so it is a near-tie in the model,
+not missing context.
+
+Two things apply to **both** sources:
+
+- **Territory.** A region traces only its own tile outline grown by the pad, less what
+  higher-ranked regions own (`crop.territory`). Padded boxes overlap, and the same pixels
+  used to become foci of two regions, sampled and weighted twice; a slide-spanning box
+  swept in tumour nobody selected.
+- **Step 12 follows.** Its report stores a fingerprint of `refined.json`, so re-running
+  this step makes step 12 re-warp instead of handing on the old outlines.
+
+On the BEETLE path, invasive pixels within `roi_refinement_group_um` (40 um) are joined
+before specks are dropped: a tumour that infiltrates as single cells (CAN_00267) used to
+lose every cell to the speck filter and come back empty.
+
 ## BEETLE does not run on the slide
 
 That is the whole step. `pixels.segment` already existed and already ran BEETLE over
