@@ -28,6 +28,9 @@ LOG = common.LOGS / "a2_deepliif.log"
 #: pair's seeded sample and the first LyNSeC test images - and the report says so.
 FIELDS_PER_PAIR = 8
 LYNSEC_IMAGES = 20
+#: Second run. DeepLIIF was built on this data, so its BC-DeepLIIF row is an upper bound
+#: on what it can do, not a fair comparison - the report says so.
+BCDL_IMAGES = 20
 
 
 def model_dir():
@@ -53,15 +56,15 @@ def main() -> int:
     common.ensure_dirs()
     directory = model_dir()
     checkpoint = common.Checkpoint("a2_deepliif")
-    units = [(common.pair_id(c, m), "ihc") for c, m in common.PAIRS] + [("LYNSEC", "lynsec")]
+    units = [(common.pair_id(c, m), "ihc") for c, m in common.PAIRS] + [("LYNSEC", "lynsec"), ("BCDL", "bcdl")]
     failures = 0
     for unit, side in units:
         if checkpoint.done(unit):
             continue
         try:
-            if side == "lynsec":
-                meta = common.read_json(common.LYNSEC / "meta.json") or {"test": []}
-                names = [(e["name"], common.LYNSEC / "test" / f"{e['name']}.png") for e in meta["test"][:LYNSEC_IMAGES]]
+            if side != "ihc":
+                limit = LYNSEC_IMAGES if unit == "LYNSEC" else BCDL_IMAGES
+                names = [(n, p) for n, p, _ in common.labelled_items(unit, limit=limit)]
             else:
                 meta = common.read_json(common.FIELDS / unit / "meta.json") or {"ihc": []}
                 names = [(e["name"], common.FIELDS / unit / "ihc" / f"{e['name']}.png") for e in meta["ihc"][:FIELDS_PER_PAIR]]

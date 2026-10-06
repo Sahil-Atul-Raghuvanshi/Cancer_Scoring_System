@@ -42,6 +42,10 @@ DOWNLOADS = OUT / "downloads"
 FIELDS = OUT / "fields"
 LABELS = OUT / "labels"
 LYNSEC = OUT / "lynsec"
+BCDL = OUT / "bcdl"
+RENDERS = OUT / "renders"
+PSEUDO = OUT / "pseudo"
+VISUAL = OUT / "visual"
 ENVS = OUT / "envs"
 MODELS = OUT / "models"
 HISTORY = data_versions.data_root() / "history"
@@ -72,11 +76,34 @@ DETECTORS = [
     "lynsec_hovernet",   # approach 3: published IHC-trained model
     "cellpose_nuclei",   # approach 3: zero-shot reference for the fine-tune
     "cellpose_finetuned",  # approach 3: fine-tuned on LyNSeC IHC
+    # Second run (6 Oct): no pathologist needed for any of these.
+    "cellpose_hinput",     # option 5: zero-shot Cellpose on the haematoxylin-only render
+    "cellpose_odsum",      # option 5: zero-shot Cellpose on the OD-sum render
+    "cellpose_bc",         # option 1: fine-tuned on BC-DeepLIIF breast IHC
+    "cellpose_selftrained",  # option 4: fine-tuned on detector-agreement labels from our slides
 ]
+
+#: Labelled IHC sets: unit name -> (folder, side prefix, what it is).
+LABELLED = {
+    "LYNSEC": ("lynsec", "lymphoma IHC, hand-drawn (LyNSeC)"),
+    "BCDL": ("bcdl", "breast Ki-67 IHC, from co-registered mpIF (BC-DeepLIIF)"),
+}
+
+
+def labelled_dir(unit: str):
+    return OUT / LABELLED[unit][0]
+
+
+def labelled_items(unit: str, part: str = "test", limit: int | None = None):
+    """(name, image path, instance-mask path) for a labelled set's test or train split."""
+    meta = read_json(labelled_dir(unit) / "meta.json") or {}
+    entries = meta.get(part, [])[:limit] if limit else meta.get(part, [])
+    folder = labelled_dir(unit) / part
+    return [(e["name"], folder / f"{e['name']}.png", folder / f"{e['name']}_inst.npz") for e in entries]
 
 
 def ensure_dirs() -> None:
-    for directory in (STATE, LOGS, DOWNLOADS, FIELDS, LABELS, LYNSEC, ENVS, MODELS):
+    for directory in (STATE, LOGS, DOWNLOADS, FIELDS, LABELS, LYNSEC, BCDL, RENDERS, PSEUDO, VISUAL, ENVS, MODELS):
         directory.mkdir(parents=True, exist_ok=True)
 
 

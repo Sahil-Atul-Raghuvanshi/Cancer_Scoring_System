@@ -33,6 +33,8 @@ HEARTBEATS = {
     "env_cellpose": "env", "env_deepliif": "env", "env_hovernet": "env",
     "a3_cellpose": "a3_cellpose", "a3_hovernet": "a3_hovernet", "a2_deepliif": "a2_deepliif",
     "download": "download",
+    "bcdl_prep": "bcdl_prep", "a1_bcdl": "a1", "renders": "renders", "pseudo_fields": "pseudo",
+    "a4_zero": "a4_cellpose", "a4_self": "a4_cellpose", "a4_bc": "a4_cellpose", "visual": "visual",
 }
 
 

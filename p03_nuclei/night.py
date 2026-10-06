@@ -48,10 +48,33 @@ STAGES = [
      lambda: done("env_cellpose") and done("lynsec_prep") and done("fields")),
     ("env_hovernet", lambda: common.BACKEND_PY, ["stage_env.py", "hovernet"], 1.5, lambda: ok("hovernet_code")),
     ("a3_hovernet", lambda: env_py("hovernet"), ["stage_a3_hovernet.py"], 4.0,
-     lambda: done("env_hovernet") and ok("lynsec_model") and done("lynsec_prep") and done("fields")),
+     lambda: done("env_hovernet") and ok("lynsec_model") and done("lynsec_prep") and done("fields")
+     and done("bcdl_prep")),
     ("a2_deepliif", lambda: env_py("deepliif"), ["stage_a2_deepliif.py"], 5.0,
-     lambda: done("env_deepliif") and ok("deepliif_model") and done("lynsec_prep") and done("fields")),
+     lambda: done("env_deepliif") and ok("deepliif_model") and done("lynsec_prep") and done("fields")
+     and done("bcdl_prep")),
+    # Second run (6 Oct): options 1, 2, 4 and 5 - none needs a pathologist. DeepLIIF and
+    # HoVer-Net above are re-opened for it and pick up only the new breast set (their
+    # checkpoints skip everything already done), so they wait for it.
+    ("pseudo_fields", lambda: common.BACKEND_PY, ["stage_pseudo_fields.py"], 1.5, lambda: done("fields")),
+    ("bcdl_prep", lambda: common.BACKEND_PY, ["stage_bcdl_prep.py"], 1.0,
+     lambda: ok("bcdl_val") and ok("bcdl_train")),
+    ("a1_bcdl", lambda: common.BACKEND_PY, ["stage_a1.py", "bcdl"], 1.0, lambda: done("bcdl_prep")),
+    ("renders", lambda: common.BACKEND_PY, ["stage_renders.py"], 1.0, lambda: done("bcdl_prep")),
+    ("a4_zero", lambda: env_py("cellpose"), ["stage_a4_cellpose.py", "zero"], 4.0,
+     lambda: done("renders") and done("pseudo_fields")),
+    # a4_self (self-training on detector agreement) was run once on 6 Oct and is retired:
+    # the detectors agree on only 28-40% of nuclei, so their consensus is not ground truth
+    # and training on it would copy their blind spots. Training on our slides needs labels.
+    ("a4_bc", lambda: env_py("cellpose"), ["stage_a4_cellpose.py", "bc"], 4.5, lambda: done("bcdl_prep")),
+    ("visual", lambda: common.BACKEND_PY, ["stage_visual.py"], 0.5, lambda: settled(exclude="visual")),
 ]
+
+
+def settled(exclude: str) -> bool:
+    """Every other stage has finished one way or the other - the contact sheets go last."""
+    stages = state()["stages"]
+    return all((stages.get(n) or {}).get("state") in ("done", "gave_up") for n, *_ in STAGES if n != exclude)
 
 
 def state() -> dict:

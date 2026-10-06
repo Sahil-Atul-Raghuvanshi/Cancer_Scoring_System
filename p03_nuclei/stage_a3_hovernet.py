@@ -24,6 +24,7 @@ GEOMETRY = {"fast": (256, 164), "original": (270, 80)}
 #: first four pairs in full before its 4 h cap; the rest are scored on the first 8 fields
 #: of their seeded sample so the night can finish. The report says which.
 FIELDS_PER_PAIR = 8
+BCDL_IMAGES = 20  # second run, same speed
 
 
 def load(mode: str):
@@ -122,15 +123,14 @@ def main() -> int:
     mode = choose_mode()
     net, nr_types = load(mode)
     checkpoint = common.Checkpoint("a3_hovernet")
-    units = [("LYNSEC", "lynsec")] + [(common.pair_id(c, m), "ihc") for c, m in common.PAIRS]
+    units = [("LYNSEC", "lynsec")] + [(common.pair_id(c, m), "ihc") for c, m in common.PAIRS] + [("BCDL", "bcdl")]
     failures = 0
     for unit, side in units:
         if checkpoint.done(unit):
             continue
         try:
-            if side == "lynsec":
-                meta = common.read_json(common.LYNSEC / "meta.json") or {"test": []}
-                items = [(e["name"], common.LYNSEC / "test" / f"{e['name']}.png") for e in meta["test"]]
+            if side != "ihc":
+                items = [(n, p) for n, p, _ in common.labelled_items(unit, limit=BCDL_IMAGES if unit == "BCDL" else None)]
             else:
                 meta = common.read_json(common.FIELDS / unit / "meta.json") or {"ihc": []}
                 items = [(e["name"], common.FIELDS / unit / "ihc" / f"{e['name']}.png") for e in meta["ihc"][:FIELDS_PER_PAIR]]

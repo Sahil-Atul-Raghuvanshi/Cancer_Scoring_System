@@ -27,6 +27,9 @@ ITEMS = [
     ("lynsec_data", "8065174", "lynsec.zip", None),
     ("hovernet_code", None, None, "https://github.com/vqdang/hover_net/archive/refs/heads/master.zip"),
     ("deepliif_model", "4751737", "DeepLIIF_Latest_Model.zip", None),
+    # Second run: breast-cancer IHC (Ki-67) with cell masks from co-registered mpIF.
+    ("bcdl_val", "4751737", "BC-DeepLIIF_Validation_Set.zip", None),
+    ("bcdl_train", "4751737", "BC-DeepLIIF_Training_Set.zip", None),
 ]
 LOG = common.LOGS / "download.log"
 

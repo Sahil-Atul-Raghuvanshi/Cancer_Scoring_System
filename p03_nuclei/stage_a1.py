@@ -2,6 +2,7 @@
 
     python stage_a1.py fields     the benchmark IHC fields and the H&E reference fields
     python stage_a1.py lynsec     LyNSeC's held-out labelled IHC images
+    python stage_a1.py bcdl       BC-DeepLIIF's held-out labelled breast IHC images
 
 Three detectors, all from the backend's own code so nothing here is a re-implementation:
 
@@ -62,7 +63,7 @@ def run(images: dict[str, np.ndarray], *, mpp: float, sides: dict[str, str], out
     for name, rgb in images.items():
         side = sides[name]
         targets = {"instanseg_rgb": lambda: segment_array(rgb)}
-        if side == "lynsec":
+        if side not in ("ihc", "he"):
             # Production's own input - the haematoxylin-only render step 13 feeds the
             # model - so the labelled comparison has a "today" row. On our slides that
             # row is production's saved output instead; LyNSeC images have none.
@@ -108,25 +109,28 @@ def fields() -> int:
     return 1 if failures else 0
 
 
-def lynsec() -> int:
+def labelled(unit: str) -> int:
+    """A labelled set's held-out images; `unit` is a key of `common.LABELLED`."""
     from PIL import Image
 
-    meta = common.read_json(common.LYNSEC / "meta.json")
+    side = common.LABELLED[unit][0]
+    meta = common.read_json(common.labelled_dir(unit) / "meta.json")
     if not meta:
-        common.say("lynsec: not prepared yet", LOG)
+        common.say(f"{side}: not prepared yet", LOG)
         return 2
-    checkpoint = common.Checkpoint("a1_lynsec")
+    checkpoint = common.Checkpoint(f"a1_{side}")
     if checkpoint.done("test"):
         return 0
     images, sides = {}, {}
-    for entry in meta["test"]:
-        images[entry["name"]] = np.asarray(Image.open(common.LYNSEC / "test" / f"{entry['name']}.png").convert("RGB"))
-        sides[entry["name"]] = "lynsec"
-    run(images, mpp=float(meta["mpp"]), sides=sides, out_pair="LYNSEC")
+    for name, path, _ in common.labelled_items(unit):
+        images[name] = np.asarray(Image.open(path).convert("RGB"))
+        sides[name] = side
+    run(images, mpp=float(meta["mpp"]), sides=sides, out_pair=unit)
     checkpoint.mark("test", images=len(images))
     return 0
 
 
 if __name__ == "__main__":
     common.ensure_dirs()
-    sys.exit(lynsec() if sys.argv[1:] == ["lynsec"] else fields())
+    which = sys.argv[1] if len(sys.argv) > 1 else "fields"
+    sys.exit(fields() if which == "fields" else labelled(which.upper()))
