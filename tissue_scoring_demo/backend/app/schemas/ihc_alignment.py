@@ -127,6 +127,9 @@ class AlignmentReport(APIModel):
     ihc_upload_id: str
     marker: str | None = None
     state: AlignmentState
+    #: Fingerprint of step 11's regions this report carried (P-10). A report is reused
+    #: only while it still matches; `None` on reports from before the stamp.
+    regions_key: str | None = None
     generated_at: str
 
     regions: list[AlignedRegion]

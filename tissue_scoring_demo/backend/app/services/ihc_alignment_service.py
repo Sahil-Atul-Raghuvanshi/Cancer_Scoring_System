@@ -256,7 +256,15 @@ class IhcAlignmentService:
 
         if not restart:
             existing = self._read_report(he_upload_id, ihc_upload_id)
-            if existing is not None:
+            # **Only while the regions it carried are still step 11's (P-10).** A report
+            # used to be reused whatever happened upstream, so re-running step 11 - a new
+            # region source, a retried region - left steps 12-18 measuring the old
+            # outlines with nothing to say so. A report from before the stamp existed
+            # carries no key and is treated as stale.
+            if existing is not None and (
+                existing.state != "ready"
+                or existing.regions_key == self.regions_key(he_upload_id)
+            ):
                 return AlignmentRun(
                     he_upload_id=he_upload_id,
                     ihc_upload_id=ihc_upload_id,
@@ -405,6 +413,7 @@ class IhcAlignmentService:
             marker=self._marker_for(ihc_upload_id),
             state="ready",
             generated_at=_now(),
+            regions_key=self.regions_key(he_upload_id),
             regions=[
                 AlignedRegion(
                     index=region.index,
@@ -432,6 +441,23 @@ class IhcAlignmentService:
         )
         self._write_report(report)
         return report
+
+    @staticmethod
+    def regions_key(he_upload_id: str) -> str | None:
+        """A fingerprint of the regions step 11 hands over: its stored boundary file.
+
+        `None` when there is none to read - the tiles path, or step 11 not run - which
+        never matches a stored key, so such a report is always re-derived.
+        """
+        import hashlib
+
+        from app.services.roi_refinement_service import roi_refinement_service
+
+        path = roi_refinement_service._path(he_upload_id, "refined.json")
+        try:
+            return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+        except OSError:
+            return None
 
     def _crossable(self, he_upload_id: str) -> list:
         """Step 11's refined foci, or a refusal saying which step is missing.
