@@ -71,51 +71,44 @@ def verify(case_id: str) -> int:
             print(f"{letter}: no stored rows; nothing to verify")
             continue
 
-        # --- read the region areas from step 14's own report ----------------
-        report = json.loads((directory / "report.json").read_text(encoding="utf-8"))
-        areas = {int(r["rank"]): float(r["areaMm2"]) for r in report["regions"]}
+        # --- the sample, from step 13's own report (P-06) ---------------------
+        # Every carried region's area, and the area each field was counted over -
+        # including fields that found nothing. A region stands for its cells scaled by
+        # area / sampled area; without step 13's report the cells are simply pooled.
+        nuclei_path = settings.nuclei_dir / f"{he}__{ihc}" / "report.json"
+        areas: dict[int, float] = {}
+        sampled: dict[int, float] = {}
+        if nuclei_path.is_file():
+            nuclei = json.loads(nuclei_path.read_text(encoding="utf-8"))
+            for region in nuclei.get("regions", []):
+                rank = int(region["rank"])
+                areas[rank] = float(region["areaMm2"])
+                for item in region.get("fields", []):
+                    sampled[rank] = sampled.get(rank, 0.0) + float(item["countedMm2"])
 
         # --- recompute, by hand ---------------------------------------------
-        by_region: dict[int, list[dict]] = {}
-        for row in rows:
-            by_region.setdefault(int(row["regionRank"]), []).append(row)
-
-        region_percent: dict[int, float] = {}
-        region_intensity: dict[int, float] = {}
-        for rank, cells in by_region.items():
-            positive = [
-                cell
-                for cell in cells
-                if float(cell["intensityOd"]) >= cuts.od[0]
+        def is_positive(cell: dict) -> bool:
+            return (
+                float(cell["intensityOd"]) >= cuts.od[0]
                 and float(cell["second"]) >= cuts.second_min
-            ]
-            region_percent[rank] = 100.0 * len(positive) / len(cells)
-            region_intensity[rank] = (
-                sum(float(cell["intensityOd"]) for cell in positive) / len(positive)
-                if positive
-                else 0.0
             )
 
-        weight = sum(areas.get(rank, 0.0) for rank in by_region)
-        percent_raw = (
-            sum(region_percent[rank] * areas.get(rank, 0.0) for rank in by_region) / weight
-            if weight > 0
-            else 100.0
-            * sum(
-                1
-                for row in rows
-                if float(row["intensityOd"]) >= cuts.od[0]
-                and float(row["second"]) >= cuts.second_min
-            )
-            / len(rows)
+        read = {int(row["regionRank"]) for row in rows} | set(sampled)
+        scaled = bool(sampled) and all(
+            areas.get(rank, 0) > 0 and sampled.get(rank, 0) > 0 for rank in read
         )
 
-        stained = [rank for rank in by_region if region_intensity[rank] > 0]
-        stained_weight = sum(areas.get(rank, 0.0) for rank in stained)
+        def scale(rank: int) -> float:
+            return areas[rank] / sampled[rank] if scaled else 1.0
+
+        total = sum(scale(int(row["regionRank"])) for row in rows)
+        hits = [row for row in rows if is_positive(row)]
+        hit_weight = sum(scale(int(row["regionRank"])) for row in hits)
+        percent_raw = 100.0 * hit_weight / total if total else 0.0
         intensity_raw = (
-            sum(region_intensity[rank] * areas.get(rank, 0.0) for rank in stained)
-            / stained_weight
-            if stained_weight > 0
+            sum(scale(int(row["regionRank"])) * float(row["intensityOd"]) for row in hits)
+            / hit_weight
+            if hit_weight
             else 0.0
         )
 

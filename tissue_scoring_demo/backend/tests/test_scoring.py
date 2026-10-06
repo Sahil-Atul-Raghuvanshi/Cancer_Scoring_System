@@ -273,3 +273,122 @@ def _measured():
         ),
         cells=50,
     )
+
+
+# --- P-06: estimated over the ROI, with an interval ---------------------------
+
+
+def _field_cells(positive: int, negative: int, *, rank: int, field: int, cuts) -> list[dict]:
+    cell = lambda od, second: {  # noqa: E731
+        "intensityOd": od, "second": second, "regionRank": rank, "fieldIndex": field,
+    }
+    strong = max(cuts.od) + 0.2
+    return [cell(strong, 1.0) for _ in range(positive)] + [cell(0.0, 0.0) for _ in range(negative)]
+
+
+def _score(cells, cuts, **kwargs):
+    return score(
+        "A", cells, cuts,
+        marker_name="CD44", compartment="membrane", second_measure="ring_completeness",
+        **kwargs,
+    )
+
+
+def test_a_large_region_read_from_a_few_cells_no_longer_carries_the_slide(membrane_cuts):
+    """CAN_00303 Pan-cadherin, in miniature.
+
+    Three dense regions read 90 % positive over many fields; one 9.3 mm2 region was
+    read from a single field holding 20 unstained cells. Area weighting let those 20
+    cells speak for 9.3 mm2 and pulled the slide down to about a third. Weighting by
+    estimated cells takes the sparse region at what its field showed: few cells.
+    """
+    cells: list[dict] = []
+    fields: dict[tuple[int, int], float] = {}
+    for rank in (1, 2, 3):
+        for field in range(8):
+            cells += _field_cells(90, 10, rank=rank, field=field, cuts=membrane_cuts)
+            fields[(rank, field)] = 0.054
+    cells += _field_cells(0, 20, rank=4, field=0, cuts=membrane_cuts)
+    fields[(4, 0)] = 0.054
+    areas = {1: 1.5, 2: 1.5, 3: 1.5, 4: 9.3}
+
+    result = _score(cells, membrane_cuts, region_areas=areas, field_areas=fields)
+
+    assert result.averaging_used == "estimated_cells"
+    assert result.percent_area_weighted < 40  # the old answer
+    assert result.percent_raw > result.percent_area_weighted + 25  # the new one
+    # The sparse region still counts - for the cells it is estimated to hold (about
+    # 29 %), not for its area (67 %).
+    sparse = next(r for r in result.regions if r.rank == 4)
+    assert 0.2 < sparse.weight_share < 0.35
+
+
+def test_proportional_sampling_reduces_the_estimate_to_the_pooled_ratio(membrane_cuts):
+    """Where fields follow area, scaling up changes nothing: same answer as pooling."""
+    cells = _field_cells(30, 70, rank=1, field=0, cuts=membrane_cuts)
+    cells += _field_cells(80, 20, rank=2, field=0, cuts=membrane_cuts)
+    cells += _field_cells(80, 20, rank=2, field=1, cuts=membrane_cuts)
+    fields = {(1, 0): 0.05, (2, 0): 0.05, (2, 1): 0.05}
+
+    result = _score(cells, membrane_cuts, region_areas={1: 1.0, 2: 2.0}, field_areas=fields)
+
+    assert result.percent_raw == pytest.approx(result.percent_pooled, abs=0.01)
+
+
+def test_an_empty_field_lowers_its_regions_weight(membrane_cuts):
+    """A field that found no cells is evidence the region holds few; it is not dropped."""
+    cells = _field_cells(50, 50, rank=1, field=0, cuts=membrane_cuts)
+    cells += _field_cells(100, 0, rank=2, field=0, cuts=membrane_cuts)
+    base = {(1, 0): 0.05, (2, 0): 0.05}
+    with_empty = {**base, (2, 1): 0.05}
+    areas = {1: 1.0, 2: 1.0}
+
+    before = _score(cells, membrane_cuts, region_areas=areas, field_areas=base)
+    after = _score(cells, membrane_cuts, region_areas=areas, field_areas=with_empty)
+
+    assert after.percent_raw < before.percent_raw
+
+
+def test_without_field_areas_the_pooled_ratio_is_reported_and_labelled(membrane_cuts):
+    cells = _field_cells(30, 70, rank=1, field=0, cuts=membrane_cuts)
+    cells += _field_cells(90, 10, rank=2, field=0, cuts=membrane_cuts)
+    result = _score(cells, membrane_cuts, region_areas={1: 9.0, 2: 1.0})
+    assert result.averaging_used == "pooled"
+    assert result.percent_raw == pytest.approx(result.percent_pooled)
+
+
+def test_unsampled_regions_are_reported_not_imputed(membrane_cuts):
+    cells = _field_cells(50, 50, rank=1, field=0, cuts=membrane_cuts)
+    result = _score(
+        cells, membrane_cuts,
+        region_areas={1: 2.0, 2: 0.03, 3: 0.02},
+        field_areas={(1, 0): 0.05},
+    )
+    assert result.unsampled_regions == 2
+    assert result.unsampled_area_mm2 == pytest.approx(0.05)
+    assert result.percent_raw == pytest.approx(50.0)
+
+
+def test_the_interval_narrows_with_more_fields_and_is_reproducible(membrane_cuts):
+    def slide(n_fields: int):
+        cells: list[dict] = []
+        fields = {}
+        for field in range(n_fields):
+            positive = 70 if field % 2 else 30  # fields disagree, as real ones do
+            cells += _field_cells(positive, 100 - positive, rank=1, field=field, cuts=membrane_cuts)
+            fields[(1, field)] = 0.05
+        return _score(cells, membrane_cuts, region_areas={1: 5.0}, field_areas=fields)
+
+    few, many = slide(2), slide(40)
+    assert few.percent_ci_low <= few.percent_raw <= few.percent_ci_high
+    assert many.percent_ci_width < few.percent_ci_width / 2
+    again = slide(40)
+    assert (again.percent_ci_low, again.percent_ci_high) == (
+        many.percent_ci_low, many.percent_ci_high,
+    )
+
+
+def test_a_handful_of_cells_gets_a_wide_interval(membrane_cuts):
+    cells = _field_cells(5, 5, rank=1, field=0, cuts=membrane_cuts)
+    result = _score(cells, membrane_cuts, region_areas={1: 1.0}, field_areas={(1, 0): 0.05})
+    assert result.percent_ci_width > 40

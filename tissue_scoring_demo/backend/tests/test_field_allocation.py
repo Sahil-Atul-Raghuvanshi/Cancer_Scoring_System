@@ -49,14 +49,26 @@ def test_a_large_floor_would_swamp_a_proportional_split():
     assert proper[0] / sum(proper) > swamped[0] / sum(swamped) * 2
 
 
-def test_the_floor_wins_when_the_budget_cannot_cover_it():
-    """The floor is a validity condition; the budget is a cost control.
+def test_too_many_regions_share_the_budget_by_area_not_one_each():
+    """P-06: the floor used to win, so 690 regions got one field each.
 
-    Sampling a region too thinly to read, in order to respect a cost ceiling,
-    buys nothing - the fields spent on it are wasted either way.
+    A 9.34 mm2 region on CAN_00303 was then read from one field of 13-29 cells -
+    the same sample as a fragment a hundredth of its size. Now the floor is dropped
+    when it alone would spend the budget, the budget is not exceeded, and the
+    large region gets the fields its area calls for.
     """
-    shares = allocate([1.0] * 10, budget=12, minimum=4)
-    assert shares == [4] * 10
+    areas = [9.34] + [0.05] * 200
+    shares = allocate(areas, budget=96, minimum=1)
+
+    assert sum(shares) == 96
+    expected = 96 * areas[0] / sum(areas)
+    assert abs(shares[0] - expected) <= 1
+    assert shares[1:].count(0) > 150  # most fragments go unsampled, and say so
+
+
+def test_the_floor_still_applies_when_the_budget_covers_it():
+    shares = allocate([1.0] * 10, budget=12, minimum=1)
+    assert min(shares) >= 1 and sum(shares) == 12
 
 
 def test_proportional_sampling_makes_the_two_averagings_agree():

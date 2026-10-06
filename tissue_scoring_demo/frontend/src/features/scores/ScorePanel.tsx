@@ -119,6 +119,12 @@ export function ScorePanel({ scores, hasBins }: ScorePanelProps) {
             of {score.cells.toLocaleString()} tumour cells showed the marker in the right
             part of the cell
           </span>
+          {score.percentCiLow != null && score.percentCiHigh != null ? (
+            <span className="sc-pair__sub">
+              likely between {Math.round(score.percentCiLow)}% and{' '}
+              {Math.round(score.percentCiHigh)}%, given how much of the tissue was looked at
+            </span>
+          ) : null}
         </div>
         <div className="sc-pair__card">
           <span className="sc-pair__eyebrow">Staining strength</span>
@@ -207,9 +213,17 @@ export function ScorePanel({ scores, hasBins }: ScorePanelProps) {
 
           <dt>Combining the regions</dt>
           <dd>
-            weighted by area {score.percentAreaWeighted}% (this is the reported one) · all
-            cells pooled together {score.percentPooled}% · plain average of the regions{' '}
-            {score.percentPlainMean}%.
+            {score.averagingUsed === 'estimated_cells'
+              ? `each region counted for the cells it is estimated to hold ${score.percentRaw}% (the reported one) · `
+              : ''}
+            weighted by area {score.percentAreaWeighted}%
+            {score.averagingUsed === 'area_weighted' ? ' (the reported one)' : ''} · all
+            cells pooled together {score.percentPooled}%
+            {score.averagingUsed === 'pooled' ? ' (the reported one)' : ''} · plain average
+            of the regions {score.percentPlainMean}%.
+            {score.unsampledRegions
+              ? ` ${score.unsampledRegions} small region(s), ${score.unsampledAreaMm2?.toFixed(2)} mm², were not sampled.`
+              : ''}
           </dd>
 
           <dt>Partly stained cells</dt>
@@ -232,7 +246,10 @@ export function ScorePanel({ scores, hasBins }: ScorePanelProps) {
             {score.regions
               .map(
                 (region) =>
-                  `region ${region.rank}: ${region.percentRaw}% of ${region.cells.toLocaleString()} cells over ${region.areaMm2.toFixed(2)} mm²`,
+                  `region ${region.rank}: ${region.percentRaw}% of ${region.cells.toLocaleString()} cells over ${region.areaMm2.toFixed(2)} mm²` +
+                  (region.fields != null
+                    ? ` (${region.fields} field${region.fields === 1 ? '' : 's'}, ${Math.round((region.weightShare ?? 0) * 100)}% of the weight)`
+                    : ''),
               )
               .join('; ')}
           </dd>

@@ -30,6 +30,9 @@ def _result(**overrides):
         cuts_provisional=False, percent_area_weighted=60.0, percent_pooled=60.0,
         percent_plain_mean=60.0, averaging_gap_points=0.0,
         percent_by_partial_rule={"count": 60, "exclude": 60},
+        percent_raw=60.0, percent_ci_low=56.0, percent_ci_high=64.0,
+        single_field_weight=0.0, unsampled_regions=0, unsampled_area_mm2=0.0,
+        total_area_mm2=10.0,
     )
     return SimpleNamespace(**{**base, **overrides})
 
@@ -213,3 +216,28 @@ def test_the_csv_carries_status_beside_the_number(tmp_path, monkeypatch):
     assert rows["F"]["status"] == "unstamped", "an old row must not read as measured"
     header = list(rows["A"].keys())
     assert header.index("status") < header.index("percent")
+
+
+# --- P-06: too few cells, too wide an interval ---------------------------------
+
+
+@pytest.mark.parametrize(
+    ("overrides", "status", "heading"),
+    [
+        (dict(cells=150), "not_a_measurement", "NOT A MEASUREMENT."),
+        (dict(cells=300), "provisional", "THIN DENOMINATOR."),
+        (dict(percent_ci_low=30.0, percent_ci_high=80.0), "not_a_measurement", "INTERVAL TOO WIDE."),
+        (dict(percent_ci_low=48.0, percent_ci_high=73.0), "provisional", "WIDE INTERVAL."),
+        (dict(single_field_weight=0.6), "provisional", "INTERVAL UNDERSTATED."),
+    ],
+)
+def test_a_thin_or_uncertain_score_says_so(quiet, overrides, status, heading):
+    caveats = _caveats(_result(**overrides))
+    got, reasons = score_service._status(caveats)
+    assert (got, heading in reasons) == (status, True)
+
+
+def test_unsampled_area_is_reported_without_changing_the_status(quiet):
+    caveats = _caveats(_result(unsampled_regions=40, unsampled_area_mm2=1.5))
+    assert any(c.startswith("PART OF THE ROI NOT SAMPLED.") for c in caveats)
+    assert score_service._status(caveats)[0] == "measured"

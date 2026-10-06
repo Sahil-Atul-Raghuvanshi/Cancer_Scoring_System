@@ -760,6 +760,27 @@ class Settings(BaseSettings):
     #   "tumour"  only the cells step 14 calls tumour, as originally designed. Use it
     #             once the typing is credible (after P-03, or a refit).
     score_population: str = "all"
+
+    # How many cells, and how narrow an interval, a score needs before it is one (P-06).
+    #   min_cells        below this the pair is "not a measurement". 200 is the low end
+    #                    of the review's 200-400; the international Ki-67 group asks for
+    #                    at least 400 (Nielsen et al., JNCI 2021), which is
+    #   thin_cells       the line under which the score stays provisional.
+    #   ci_refuse_width  a 95 % interval wider than this many points is not a
+    #                    measurement: a pathologist's re-review band is +/-10 (SOP 8.3),
+    #                    and an interval twice that wide on each side cannot place the
+    #                    slide inside it.
+    #   ci_wide_width    wider than this, the score is provisional.
+    #   single_field_share  above this share of the weight on regions read through one
+    #                    field, the interval is called out as understated.
+    #   bootstrap_reps   replicates for the interval. 1,000 puts the 2.5th and 97.5th
+    #                    percentiles within about half a point of their limit.
+    score_min_cells: int = 200
+    score_thin_cells: int = 400
+    score_ci_refuse_width: float = 40.0
+    score_ci_wide_width: float = 20.0
+    score_single_field_share: float = 0.25
+    score_bootstrap_reps: int = 1000
     tissue_type_familiarity_quantile: float = 1.0
     tissue_type_familiarity_min_held_out: int = 300
 
@@ -1264,11 +1285,15 @@ class Settings(BaseSettings):
     #: sample. The floor had undone the thing it was added alongside.
     #:
     #: It can be one because a region does not need a readable percentage of its
-    #: own. Step 16 combines the regions by area, so a 0.25 mm2 region carries
-    #: 0.7% of the weight however noisily it was measured; what the allocation
-    #: decides is precision, not the answer. Spending fields to make a
-    #: negligible region's percentage tidy takes them from the region that
+    #: own. Step 18 weights each region by the cells it is estimated to hold, so a
+    #: 0.25 mm2 region carries a small share however noisily it was measured; what
+    #: the allocation decides is precision, not the answer. Spending fields to make
+    #: a negligible region's percentage tidy takes them from the region that
     #: actually determines the score.
+    #:
+    #: **And it is dropped when it alone would spend the budget (P-06).** With 109-690
+    #: regions against 96 fields, a floor of one gave every region one field and the
+    #: largest the same sample as the smallest. See `sampling.allocate`.
     nuclei_min_tiles_per_region: int = 1
 
     #: Minimum share of a candidate tile that must be tissue before it is worth

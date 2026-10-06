@@ -7,6 +7,11 @@ export interface RegionScore {
   positiveCells: number
   percentRaw: number
   intensityRaw: number
+  /** The sample behind it (P-06). Absent on reports from before. */
+  fields?: number
+  sampledMm2?: number
+  estimatedCells?: number
+  weightShare?: number
 }
 
 export interface HeterogeneityTile {
@@ -63,7 +68,15 @@ export interface MarkerScore {
   percentAreaWeighted: number
   percentPlainMean: number
   averagingGapPoints: number
+  /** "estimated_cells", "pooled", or "area_weighted" on reports from before P-06. */
   averagingUsed: string
+  /** 95 % interval on `percentRaw` (P-06). Null on reports from before. */
+  percentCiLow?: number | null
+  percentCiHigh?: number | null
+  singleFieldWeight?: number
+  unsampledRegions?: number
+  unsampledAreaMm2?: number
+  totalAreaMm2?: number
   partialRule: string
   percentByPartialRule: Record<string, number>
 
@@ -118,6 +131,9 @@ export interface CaseScoreRow {
   intensityLabel: string
   cells: number
   state: string
+  /** 95 % interval on the percentage (P-06). */
+  percentCiLow?: number | null
+  percentCiHigh?: number | null
   detail: string
   /** The score's own status when scored; null otherwise. */
   status?: ScoreStatus | null

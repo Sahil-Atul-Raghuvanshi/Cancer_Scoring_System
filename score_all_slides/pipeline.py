@@ -317,6 +317,10 @@ COLUMNS = (
     "intensity_raw",
     "percent_pooled",
     "intensity_pooled",
+    # How the regions were combined and how sure the percentage is (P-06).
+    "averaging_used",
+    "percent_ci_low",
+    "percent_ci_high",
     "compartment",
     "second_measure",
     "cells",

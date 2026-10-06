@@ -20,6 +20,12 @@ class RegionScoreOut(APIModel):
     positive_cells: float
     percent_raw: float
     intensity_raw: float
+    #: The sample behind it (P-06): fields read, the area they covered, the cells the
+    #: whole region is estimated to hold, and its share of the reported figure.
+    fields: int = 0
+    sampled_mm2: float = 0.0
+    estimated_cells: float = 0.0
+    weight_share: float = 0.0
 
 
 class HeterogeneityTile(APIModel):
@@ -91,7 +97,20 @@ class MarkerScoreOut(APIModel):
     percent_area_weighted: float
     percent_plain_mean: float
     averaging_gap_points: float
+    #: "estimated_cells" (each region weighted by the cells it is estimated to hold,
+    #: P-06), "pooled" (no sampled areas on record), or "area_weighted" on reports
+    #: written before P-06.
     averaging_used: str = "area_weighted"
+    #: 95 % interval on `percent_raw`, two-stage bootstrap over fields then cells.
+    percent_ci_low: float | None = None
+    percent_ci_high: float | None = None
+    #: Share of the weight on regions read through one field - the part of the
+    #: uncertainty the interval cannot see.
+    single_field_weight: float = 0.0
+    #: Carried regions no field landed in, and their area, against the whole ROI.
+    unsampled_regions: int = 0
+    unsampled_area_mm2: float = 0.0
+    total_area_mm2: float = 0.0
 
     #: Which cells `percent` and `intensity` are counted over - "all" in the region or
     #: "tumour" only (P-04) - and the tumour-only figures beside them when the reported
@@ -159,6 +178,9 @@ class CaseScoreRow(APIModel):
     #: it was scored (P-17). `state` says whether a number exists; this says whether it
     #: is one.
     status: str | None = None
+    #: 95 % interval on the percentage, before rounding (P-06).
+    percent_ci_low: float | None = None
+    percent_ci_high: float | None = None
 
 
 class CaseScoreReport(APIModel):

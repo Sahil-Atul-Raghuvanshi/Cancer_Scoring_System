@@ -74,7 +74,24 @@ class ScoreService:
         marker_cuts = cut_points.for_marker(letter)
         cut_file = cut_points.cut_set()
 
+        # **Every carried region and every field read in it (P-06).** Step 13's report
+        # is where the sample is on record: each region's area, sampled or not, and the
+        # area each field was counted over - including fields that found no cells,
+        # which are evidence of how few a region holds. Without it the sample cannot be
+        # scaled up, and step 18 falls back to the pooled ratio and says so.
         areas = {region.rank: region.area_mm2 for region in measured.regions}
+        field_areas: dict[tuple[int, int], float] | None = None
+        try:
+            nuclei_report = nuclei_service.report(he_upload_id, ihc_upload_id)
+        except NucleiError:
+            nuclei_report = None
+        if nuclei_report is not None and nuclei_report.regions:
+            areas = {region.rank: region.area_mm2 for region in nuclei_report.regions}
+            field_areas = {
+                (region.rank, item.index): item.counted_mm2
+                for region in nuclei_report.regions
+                for item in region.fields
+            }
 
         result = score(
             letter,
@@ -84,7 +101,9 @@ class ScoreService:
             compartment=spec.compartment.value,
             second_measure=measured.second_measure,
             region_areas=areas,
+            field_areas=field_areas,
             partial_rule=cut_file.partial_membrane_rule,
+            bootstrap_reps=settings.score_bootstrap_reps,
         )
 
         # **The tumour-only figure, as a sensitivity (P-04).** Same rows, same cuts,
@@ -105,7 +124,9 @@ class ScoreService:
                     compartment=spec.compartment.value,
                     second_measure=measured.second_measure,
                     region_areas=areas,
+                    field_areas=field_areas,
                     partial_rule=cut_file.partial_membrane_rule,
+                    bootstrap_reps=0,
                 )
 
         out = MarkerScoreOut(
@@ -133,7 +154,13 @@ class ScoreService:
             percent_area_weighted=result.percent_area_weighted,
             percent_plain_mean=result.percent_plain_mean,
             averaging_gap_points=result.averaging_gap_points,
-            averaging_used="area_weighted",
+            averaging_used=result.averaging_used,
+            percent_ci_low=result.percent_ci_low,
+            percent_ci_high=result.percent_ci_high,
+            single_field_weight=result.single_field_weight,
+            unsampled_regions=result.unsampled_regions,
+            unsampled_area_mm2=result.unsampled_area_mm2,
+            total_area_mm2=result.total_area_mm2,
             population=population,
             percent_tumour_only=tumour_only.percent if tumour_only else None,
             intensity_tumour_only=tumour_only.intensity if tumour_only else None,
@@ -148,6 +175,10 @@ class ScoreService:
                     positive_cells=region.positive_cells,
                     percent_raw=region.percent_raw,
                     intensity_raw=region.intensity_raw,
+                    fields=region.fields,
+                    sampled_mm2=region.sampled_mm2,
+                    estimated_cells=region.estimated_cells,
+                    weight_share=region.weight_share,
                 )
                 for region in result.regions
             ],
@@ -275,15 +306,31 @@ class ScoreService:
             CascadeStep(
                 label="Percent positive, over the ROI",
                 expression=(
-                    "each invasive region measured on its own sample, then combined by "
-                    "area: "
-                    + "  +  ".join(
-                        f"{region.percent_raw:.1f}% x {region.area_mm2:.2f}mm2"
-                        for region in result.regions
+                    (
+                        "each region's cells scaled up by how much of it was sampled "
+                        "(area / sampled area), then the ratio taken over those estimated "
+                        f"totals; {len(result.regions)} region(s) read"
+                        + (
+                            f", {result.unsampled_regions} carried but not sampled "
+                            f"({result.unsampled_area_mm2:.2f} of "
+                            f"{result.total_area_mm2:.2f} mm2)"
+                            if result.unsampled_regions
+                            else ""
+                        )
                     )
-                    + f"  /  {sum(r.area_mm2 for r in result.regions):.2f}mm2"
+                    if result.averaging_used == "estimated_cells"
+                    else "every measured cell counted once - step 13's sampled areas were "
+                    "not on record, so the sample is taken as evenly spread"
                 ),
                 value=f"{result.percent_raw:.2f} %",
+            ),
+            CascadeStep(
+                label="How sure, 95 % interval",
+                expression=(
+                    "two-stage bootstrap: resample the fields in each region, then the "
+                    "cells in each field"
+                ),
+                value=f"{result.percent_ci_low:.1f} - {result.percent_ci_high:.1f} %",
             ),
             CascadeStep(
                 label="Percent positive, reported",
@@ -391,20 +438,18 @@ class ScoreService:
         # `0 %` and `Negative` read exactly like a measured absence of staining, which is
         # the most misleading thing this pipeline can print.
         #
-        # The bands are chosen so the warning gets stronger as the count gets absurd,
-        # rather than one threshold that either fires or does not. 400 is the same figure
-        # `compare_scores.py` uses for a denominator too thin to quote to the nearest
-        # percent; below 50 the percentage carries no information at all.
-        if result.cells < 400:
+        # Two lines (P-06): below `score_min_cells` the pair is refused, below
+        # `score_thin_cells` it stays provisional. 200-400 is the review's range; the
+        # Ki-67 working group's minimum for a global count is 400.
+        if result.cells < settings.score_thin_cells:
             per_cell = 100.0 / result.cells if result.cells else 0.0
-            if result.cells < 50:
+            if result.cells < settings.score_min_cells:
                 caveats.append(
                     f"NOT A MEASUREMENT. This score was counted over {result.cells:,} "
-                    f"cell(s), so each one moves the percentage by {per_cell:.0f} points "
-                    "and the result can only be 0, 100, or a step in between. Whatever "
-                    "the figures below say, this pair did not yield enough cells to "
-                    "measure anything - read it as 'no usable tissue', never as a "
-                    "negative or positive result."
+                    f"cell(s), fewer than the {settings.score_min_cells} a percentage needs, "
+                    f"so each one moves it by {per_cell:.1f} points. Whatever the figures "
+                    "below say, this pair did not yield enough cells to measure - read it "
+                    "as 'insufficient tissue', never as a negative or positive result."
                 )
             else:
                 caveats.append(
@@ -550,27 +595,56 @@ class ScoreService:
                     "packed as much as how they stained."
                 )
 
-        if abs(result.percent_area_weighted - result.percent_pooled) >= 5:
+        # **How sure the percentage is (P-06).** The interval is the two-stage
+        # bootstrap's; its width decides, so a number resting on too little reads as
+        # what it is whatever its cell count.
+        width = result.percent_ci_high - result.percent_ci_low
+        interval = f"{result.percent_ci_low:.0f}-{result.percent_ci_high:.0f} %"
+        if result.cells >= settings.score_min_cells:
+            if width > settings.score_ci_refuse_width:
+                caveats.append(
+                    f"INTERVAL TOO WIDE. The 95 % interval on this percentage is {interval}, "
+                    f"{width:.0f} points wide. A pathologist's re-review band is +/-10, so a "
+                    "number this uncertain cannot be placed on the reader's scale - read "
+                    "it as 'insufficient tissue', not as a result."
+                )
+            elif width > settings.score_ci_wide_width:
+                caveats.append(
+                    f"WIDE INTERVAL. The 95 % interval on this percentage is {interval}, "
+                    f"{width:.0f} points wide: the fields read disagree with each other, or "
+                    "too few were read. Differences from a reader smaller than half that "
+                    "width are within the measurement's own noise."
+                )
+        if result.single_field_weight > settings.score_single_field_share:
             caveats.append(
-                f"REGION WEIGHTING MATTERS HERE. Combined by area the answer is "
-                f"{result.percent_area_weighted:.1f} %; pooling every measured cell "
-                f"regardless of which region it came from gives "
-                f"{result.percent_pooled:.1f} %; a plain mean of the regions gives "
-                f"{result.percent_plain_mean:.1f} %. Step 11 now allocates its fields in "
-                "proportion to region area, so those first two figures are close where "
-                "the tumour is one dominant mass and drift apart as the guaranteed "
-                "minimum field per region lifts small regions above their share. The "
-                "plain mean is the outlier by design: it gives a 0.25 mm2 fragment the "
-                "same say as a 22 mm2 mass. The area-weighted figure is reported, which "
-                "is the reading OncoStem's own procedure implies - the entire slide "
-                "scanned, every field averaged (SOP 4.2) - though whether they weight by "
-                "area or by cell count is still unanswered (Q3)."
+                f"INTERVAL UNDERSTATED. {result.single_field_weight:.0%} of this score's "
+                "weight rests on regions read through a single field, where there is no "
+                "second field to show how much the region varies. The interval covers "
+                "the cells in that field, not the rest of the region. Re-running step 13 "
+                "spreads its fields by area and removes this."
             )
-        elif result.averaging_gap_points >= 5:
+        if result.unsampled_regions and result.total_area_mm2 > 0:
+            share = result.unsampled_area_mm2 / result.total_area_mm2
+            if share >= 0.05:
+                caveats.append(
+                    f"PART OF THE ROI NOT SAMPLED. {result.unsampled_regions} carried "
+                    f"region(s), {result.unsampled_area_mm2:.2f} mm2 ({share:.0%} of the "
+                    "ROI), got no field: there were more regions than the field budget, "
+                    "and each was too small for a share of it. They are not imputed - the "
+                    "percentage is over the regions that were read."
+                )
+
+        if abs(result.percent_raw - result.percent_area_weighted) >= 5:
             caveats.append(
-                f"Combining the invasive regions by area and averaging them plainly "
-                f"differ by {result.averaging_gap_points:.1f} points. Area-weighted is "
-                "reported; which OncoStem uses is unanswered (Q3)."
+                f"REGION WEIGHTING MATTERS HERE. Weighting each region by the cells it is "
+                f"estimated to hold gives {result.percent_raw:.1f} % (reported); by its "
+                f"area alone, {result.percent_area_weighted:.1f} %; pooling every measured "
+                f"cell, {result.percent_pooled:.1f} %; a plain mean of the regions, "
+                f"{result.percent_plain_mean:.1f} %. Area weighting lets a large region "
+                "speak with its full area even when its fields held a handful of cells; "
+                "the reported figure takes those fields as evidence of how few cells the "
+                "region holds (P-06). Whether OncoStem weights sub-areas by area or by "
+                "cells is still unanswered (Q3)."
             )
 
         spread = max(result.percent_by_partial_rule.values()) - min(
@@ -593,6 +667,7 @@ class ScoreService:
         "ALIGNMENT FAILED ITS OWN CHECK",
         "ALIGNMENT STATUS UNKNOWN.",
         "CELL TYPING FAILED ITS OWN CHECK.",
+        "INTERVAL TOO WIDE.",
     )
     #: Headings that leave the numbers usable but unchecked or uncalibrated.
     PROVISIONAL = (
@@ -605,6 +680,8 @@ class ScoreService:
         "ALL CELLS IN THE REGION, NOT TUMOUR ONLY.",
         "THIN DENOMINATOR.",
         "DENOMINATOR INCOMPLETE.",
+        "WIDE INTERVAL.",
+        "INTERVAL UNDERSTATED.",
     )
 
     @classmethod

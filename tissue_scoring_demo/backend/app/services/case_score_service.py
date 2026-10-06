@@ -127,6 +127,8 @@ class CaseScoreService:
                     state="scored",
                     detail="; ".join(result.caveats),
                     status=result.status,
+                    percent_ci_low=result.percent_ci_low,
+                    percent_ci_high=result.percent_ci_high,
                 )
             )
 

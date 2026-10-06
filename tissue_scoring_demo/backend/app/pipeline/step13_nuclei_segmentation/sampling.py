@@ -177,6 +177,17 @@ def allocate(
     Largest-remainder rather than rounding each share independently: rounding
     gives away or overspends fields depending on where the fractions fall, and
     the caller has a fixed budget to respect.
+
+    **When the floor alone would spend the budget, the floor is dropped (P-06).**
+    Four cases carry 109-690 regions against a budget of 96. Honouring a floor of
+    one there gave every region exactly one field, whatever its size: a 9.34 mm2
+    region on CAN_00303 was read from one field of 13-29 cells, the same sample as
+    a fragment a hundredth of its size, and then carried most of the score. The
+    sample had stopped being proportional to anything. So in that case the whole
+    budget is shared by area and a region whose share rounds to nothing gets no
+    field: it is a small part of the tumour that this sample did not reach, which
+    step 18 reports as unsampled area, rather than a region read from one field
+    and weighted as if it had been measured.
     """
     wanted = settings.nuclei_field_budget if budget is None else budget
     floor = settings.nuclei_min_tiles_per_region if minimum is None else minimum
@@ -186,9 +197,9 @@ def allocate(
     if wanted <= 0:
         return [0] * len(areas)
 
-    # The floor can exceed the budget on a slide with many carried regions. Honour
-    # the floor and let the budget grow rather than sampling a region too thinly to
-    # read: the budget is a cost control, and the floor is a validity condition.
+    if floor * len(areas) >= wanted:
+        floor = 0
+
     base = [floor] * len(areas)
     remaining = wanted - sum(base)
     total = sum(areas)

@@ -101,6 +101,9 @@ def _result(**overrides):
         cuts_provisional=False, percent_area_weighted=20.0, percent_pooled=20.0,
         percent_plain_mean=20.0, averaging_gap_points=0.0,
         percent_by_partial_rule={"count": 20, "exclude": 20},
+        percent_raw=20.0, percent_ci_low=17.0, percent_ci_high=23.0,
+        single_field_weight=0.0, unsampled_regions=0, unsampled_area_mm2=0.0,
+        total_area_mm2=10.0,
     )
     return SimpleNamespace(**{**base, **overrides})
 

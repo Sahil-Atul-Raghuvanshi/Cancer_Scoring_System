@@ -16,22 +16,39 @@ calculator.
                        then mapped through that antibody's band table to the
                        nearest permitted value: 0 / 0.5 / 1 / 1.5 / 1.75 / 2
 
-**Both are averaged over the ROI by area, and that is not the same as pooling
-the cells.** The contract's formula is a ratio over the whole invasive region,
-and it would be exactly the pooled ratio if the cells had been sampled evenly
-across it. They were not: step 11 segments a fixed number of fields in each
-region regardless of how large the region is, so on CAN_00270's CD44 slide the
-largest region holds 84 % of the invasive area and contributes 42 % of the
-measured cells. Pooling those cells does not give the ROI's percentage - it
-gives an average that weights a 2 mm2 region as heavily as a 22 mm2 one, and on
-that slide the two answers are 60 % and 81 %.
+**Both are estimated over the ROI from a sample, region by region (P-06).** The
+contract's formula is a ratio of cell counts over the whole invasive region.
+Step 13 does not count every cell; it reads a sample of fields in each region.
+So each region's cells are scaled up by how much of it was sampled - a region of
+9 mm2 read through 0.5 mm2 of fields stands for eighteen times the cells that
+were counted in it - and the ratio is taken over those estimated totals:
 
-So each region is measured on its own sample and the regions are combined by
-area, which is what "the percentage over the invasive ROI" means when the sample
-is not proportional. The pooled figure and the plain mean of the regions are
-both computed and reported beside it - this is open question Q3, and the honest
-form of an unanswered question is all three numbers with the one in use
-labelled, not a single number with a convention hidden inside it.
+    percent = sum_r (area_r / sampled_r) x positive_r
+              ----------------------------------------
+              sum_r (area_r / sampled_r) x cells_r
+
+That is the contract's own ratio, estimated from a stratified sample. Where the
+fields were spread in proportion to area it is exactly the pooled ratio; where
+they were not, it corrects for it.
+
+**Why not area weighting, which this module used to report.** Area weighting
+gives each region a say proportional to its area *whatever was found in it*. A
+9.73 mm2 region on CAN_00865 whose one field held 3 cells carried most of the
+slide's weight on those 3 cells, and on CAN_00303 Pan-cadherin one 9.3 mm2 region
+read at 0 % from a single field dragged the slide to 33 % against 92 % pooled and
+80 % from the readers. Weighting by estimated cells keeps the large region's
+say where it is full of cells, and takes it away where the sample shows it is
+mostly not: three cells in a field is a measurement of how few cells are there.
+Area weighting, the pooled ratio and the plain mean of the regions are all still
+computed and reported beside it - open question Q3 (how OncoStem weights
+sub-areas) is unanswered, and the honest form of an unanswered question is every
+reading on the record with the one in use labelled.
+
+**And every percentage carries a 95 % interval.** A two-stage bootstrap:
+resample the fields inside each region, then the cells inside each field. A
+figure resting on a few fields or a few hundred cells has a wide interval, and
+step 18 refuses to call it a measurement when the interval is wider than a
+pathologist's reading could tolerate.
 
 Nothing else crosses the boundary to OncoStem. H-score, Allred and the ASCO/CAP
 HER2 call are computed here and returned, because they are the standard
@@ -90,6 +107,14 @@ class RegionScore:
     positive_cells: float
     percent_raw: float
     intensity_raw: float
+    #: Fields read in this region and the area they covered. Zero fields means the
+    #: region was carried but not sampled (P-06).
+    fields: int = 0
+    sampled_mm2: float = 0.0
+    #: Cells the whole region is estimated to hold: `cells x area / sampled`.
+    estimated_cells: float = 0.0
+    #: This region's share of the reported percentage's weight.
+    weight_share: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -154,6 +179,26 @@ class MarkerScore:
     second_min: float = 0.0
     cuts_provisional: bool = True
 
+    # --- P-06: how the regions were combined, and how sure the answer is ------
+    #: "estimated_cells" when every region's sampled area was known, "pooled" when
+    #: it was not and the sample had to be taken as evenly spread.
+    averaging_used: str = "estimated_cells"
+    #: 95 % interval on `percent_raw` from the two-stage bootstrap.
+    percent_ci_low: float = 0.0
+    percent_ci_high: float = 0.0
+    #: Share of the weight resting on regions read through a single field, whose
+    #: field-to-field spread the interval cannot see.
+    single_field_weight: float = 0.0
+    #: Carried regions no field landed in, and their area. Not imputed: they are
+    #: tumour this sample did not reach.
+    unsampled_regions: int = 0
+    unsampled_area_mm2: float = 0.0
+    total_area_mm2: float = 0.0
+
+    @property
+    def percent_ci_width(self) -> float:
+        return self.percent_ci_high - self.percent_ci_low
+
 
 def _weighted(values: np.ndarray, weights: np.ndarray, *, fallback: float) -> float:
     """Area-weighted mean, falling back when no area is known.
@@ -168,6 +213,68 @@ def _weighted(values: np.ndarray, weights: np.ndarray, *, fallback: float) -> fl
     if values.size == 0 or weights.size != values.size or weights.sum() <= 0:
         return float(fallback)
     return float((values * weights).sum() / weights.sum())
+
+
+def _ratio(weights: np.ndarray, numerators: np.ndarray, denominators: np.ndarray) -> float:
+    """sum(w x num) / sum(w x den), or 0 when the weighted denominator is empty."""
+    below = float((weights * denominators).sum())
+    return float((weights * numerators).sum()) / below if below > 0 else 0.0
+
+
+#: The bootstrap's seed. Fixed, so the same rows give the same interval on every
+#: run - a number that changes when nothing it rests on has changed is one a
+#: reader stops trusting.
+BOOTSTRAP_SEED = 20261006
+
+
+def bootstrap_interval(
+    fields_by_region: list[tuple[float, np.ndarray, np.ndarray]],
+    *,
+    reps: int,
+    seed: int = BOOTSTRAP_SEED,
+) -> tuple[float, float]:
+    """95 % interval on the estimated percentage, by a two-stage bootstrap.
+
+    `fields_by_region` holds, per sampled region, its expansion weight and two
+    arrays over its fields: cells, and positive cells. Each replicate resamples
+    the fields inside every region with replacement - the field is the sampling
+    unit, and cells in one field are not independent of each other - and then the
+    cells inside each drawn field: how many there are, as a Poisson draw on the
+    count, and how many of them are positive, as a binomial on its positive share.
+    The count draw matters because the count is what scales a region up: a region
+    read from one field of 20 cells has a density known to about +/-22 %, and that
+    is uncertainty in its weight, not only in its percentage.
+
+    Regions are strata, not resampled themselves: every carried region is part
+    of the tumour by construction, so which regions there are is not a source of
+    sampling error; what was read inside each one is. A region read through one
+    field has no between-field spread to resample, so its interval understates how
+    much a second field could have differed; the caller reports how much of the
+    weight rests on such regions rather than pretending the interval covers it.
+    """
+    if reps <= 0 or not fields_by_region:
+        return 0.0, 0.0
+
+    rng = np.random.default_rng(seed)
+    positive = np.zeros(reps, dtype=np.float64)
+    total = np.zeros(reps, dtype=np.float64)
+    for weight, cells, pos in fields_by_region:
+        k = cells.size
+        if k == 0 or weight <= 0:
+            continue
+        share = np.divide(pos, cells, out=np.zeros_like(pos), where=cells > 0).clip(0, 1)
+        drawn = rng.integers(0, k, size=(reps, k))
+        drawn_cells = rng.poisson(cells[drawn])
+        drawn_pos = rng.binomial(drawn_cells, share[drawn])
+        positive += weight * drawn_pos.sum(axis=1)
+        total += weight * drawn_cells.sum(axis=1)
+
+    valid = total > 0
+    if not valid.any():
+        return 0.0, 0.0
+    percents = 100.0 * positive[valid] / total[valid]
+    low, high = np.percentile(percents, [2.5, 97.5])
+    return float(low), float(high)
 
 
 def _allred_proportion(share: float) -> int:
@@ -243,15 +350,23 @@ def score(
     compartment: str,
     second_measure: str,
     region_areas: dict[int, float] | None = None,
+    field_areas: dict[tuple[int, int], float] | None = None,
     partial_rule: str = "count",
+    bootstrap_reps: int = 1000,
 ) -> MarkerScore:
     """The whole deliverable for one antibody, from stored rows and cut points.
 
     `cells` are step 14's rows exactly as they were written: dicts with
-    `intensityOd`, `second` and `regionRank`. Taking them in that form rather
-    than as a fitted object is deliberate - it means this function can be run
-    over a JSON file by anybody wanting to check the arithmetic, without
+    `intensityOd`, `second`, `regionRank` and `fieldIndex`. Taking them in that
+    form rather than as a fitted object is deliberate - it means this function can
+    be run over a JSON file by anybody wanting to check the arithmetic, without
     importing the half of the pipeline that produced it.
+
+    `region_areas` is every carried region's area, sampled or not. `field_areas`
+    is the area each segmented field was counted over, keyed `(rank, field)` -
+    including fields that yielded no cells, because an empty field is evidence of
+    how few cells a region holds. Without `field_areas` the sample cannot be
+    scaled up and the pooled ratio is reported, labelled as such.
     """
     if not cells:
         raise ValueError(
@@ -263,6 +378,7 @@ def score(
     od = np.array([float(cell["intensityOd"]) for cell in cells], dtype=np.float64)
     second = np.array([float(cell["second"]) for cell in cells], dtype=np.float64)
     ranks = np.array([int(cell.get("regionRank", 1)) for cell in cells], dtype=np.int64)
+    field_ids = np.array([int(cell.get("fieldIndex", 0)) for cell in cells], dtype=np.int64)
 
     positive, weight = positive_mask(od, second, cuts, rule=partial_rule)
     binned = bin_cells(od, cuts)
@@ -276,10 +392,34 @@ def score(
     percent_pooled = 100.0 * positive_cells / total
     intensity_pooled = float(od[positive].mean()) if positive.any() else 0.0
 
-    # --- each region on its own sample, then combined by area (Q3) -----------
+    # --- each region on its own sample --------------------------------------
     areas = region_areas or {}
+    sampled_fields = field_areas or {}
+    sampled_by_rank: dict[int, float] = {}
+    fields_by_rank: dict[int, list[int]] = {}
+    for (rank, index), mm2 in sampled_fields.items():
+        sampled_by_rank[int(rank)] = sampled_by_rank.get(int(rank), 0.0) + float(mm2)
+        fields_by_rank.setdefault(int(rank), []).append(int(index))
+
+    # Every region that was read: it has cells, or fields that found none.
+    read = sorted({int(value) for value in ranks} | set(fields_by_rank))
+    # Expansion only when every read region's area and sampled area are known;
+    # otherwise the sample is taken as evenly spread, which is the pooled ratio.
+    expandable = bool(sampled_fields) and all(
+        areas.get(rank, 0.0) > 0 and sampled_by_rank.get(rank, 0.0) > 0 for rank in read
+    )
+    averaging_used = "estimated_cells" if expandable else "pooled"
+
+    def expansion(rank: int) -> float:
+        return areas[rank] / sampled_by_rank[rank] if expandable else 1.0
+
+    region_weight = np.array([expansion(rank) for rank in read], dtype=np.float64)
+    region_cells = np.array([int((ranks == rank).sum()) for rank in read], dtype=np.float64)
+    estimated = region_weight * region_cells
+    estimated_total = float(estimated.sum())
+
     region_scores: list[RegionScore] = []
-    for rank in sorted({int(value) for value in ranks}):
+    for at, rank in enumerate(read):
         mask = ranks == rank
         region_positive = float(weight[mask].sum())
         region_total = int(mask.sum())
@@ -292,54 +432,62 @@ def score(
                 positive_cells=round(region_positive, 2),
                 percent_raw=round(100.0 * region_positive / max(1, region_total), 2),
                 intensity_raw=round(float(region_od.mean()) if region_od.size else 0.0, 4),
+                fields=len(fields_by_rank.get(rank, [])),
+                sampled_mm2=round(sampled_by_rank.get(rank, 0.0), 4),
+                estimated_cells=round(float(estimated[at]), 1),
+                weight_share=round(
+                    float(estimated[at]) / estimated_total if estimated_total > 0 else 0.0, 4
+                ),
             )
         )
 
-    weights = np.array([region.area_mm2 for region in region_scores], dtype=np.float64)
-    percents = np.array([region.percent_raw for region in region_scores], dtype=np.float64)
-    area_weighted = _weighted(percents, weights, fallback=percent_pooled)
-    plain_mean = float(percents.mean()) if percents.size else percent_pooled
+    # Every cell carries its region's expansion weight from here on.
+    cell_weight = np.array([expansion(int(rank)) for rank in ranks], dtype=np.float64)
+    ones = np.ones_like(od)
 
-    # Intensity is combined the same way, over the regions that HAVE a positive
-    # cell. A region where nothing stained has no mean optical density of stained
-    # cells, and folding a zero in for it would be counting its emptiness twice -
-    # once in the percentage, which is where it belongs, and again here.
-    stained = np.array(
-        [region.intensity_raw > 0.0 for region in region_scores], dtype=bool
-    )
-    intensities = np.array(
-        [region.intensity_raw for region in region_scores], dtype=np.float64
-    )
-    intensity_raw = (
-        _weighted(intensities[stained], weights[stained], fallback=intensity_pooled)
-        if stained.any()
-        else 0.0
-    )
+    # The reported percentage: the contract's ratio over the ROI, estimated.
+    percent_raw = 100.0 * _ratio(cell_weight, weight, ones)
 
     # Intensity is the mean over the POSITIVE cells, not over all of them.
     # Including the negatives would drag every slide's intensity towards zero in
     # proportion to how few cells stained - which is the percentage's job, and
-    # would be counted twice if the intensity did it as well.
-    percent_raw = area_weighted
+    # would be counted twice if the intensity did it as well. Weighted the same way
+    # as the percentage, so both numbers describe the same estimated population.
+    intensity_raw = (
+        _ratio(cell_weight[positive], od[positive], ones[positive]) if positive.any() else 0.0
+    )
+
+    # --- the other readings of Q3, reported beside it --------------------------
+    area_weights = np.array([region.area_mm2 for region in region_scores], dtype=np.float64)
+    percents = np.array([region.percent_raw for region in region_scores], dtype=np.float64)
+    area_weighted = _weighted(percents, area_weights, fallback=percent_pooled)
+    plain_mean = float(percents.mean()) if percents.size else percent_pooled
+
+    # --- the interval -----------------------------------------------------------
+    per_field: list[tuple[float, np.ndarray, np.ndarray]] = []
+    for at, rank in enumerate(read):
+        in_region = ranks == rank
+        indices = fields_by_rank.get(rank) or sorted({int(i) for i in field_ids[in_region]})
+        field_cells = np.array(
+            [int((in_region & (field_ids == i)).sum()) for i in indices], dtype=np.float64
+        )
+        field_pos = np.array(
+            [float(weight[in_region & (field_ids == i)].sum()) for i in indices],
+            dtype=np.float64,
+        )
+        per_field.append((float(region_weight[at]), field_cells, field_pos))
+    ci_low, ci_high = bootstrap_interval(per_field, reps=bootstrap_reps)
+
+    # --- what was carried but never read ---------------------------------------
+    unsampled = [rank for rank in areas if int(rank) not in set(read)]
+    unsampled_area = float(sum(areas[rank] for rank in unsampled))
+    total_area = float(sum(areas.values()))
 
     # --- Q1: what each reading of partial staining would have reported -------
     by_rule: dict[str, int] = {}
     for rule in ("count", "half", "exclude"):
         _, rule_weight = positive_mask(od, second, cuts, rule=rule)
-        rule_percents = np.array(
-            [
-                100.0 * float(rule_weight[ranks == region.rank].sum())
-                / max(1, int((ranks == region.rank).sum()))
-                for region in region_scores
-            ]
-        )
-        by_rule[rule] = round_to_step(
-            _weighted(
-                rule_percents,
-                weights,
-                fallback=100.0 * float(rule_weight.sum()) / total,
-            )
-        )
+        by_rule[rule] = round_to_step(100.0 * _ratio(cell_weight, rule_weight, ones))
 
     # --- the reference scores ------------------------------------------------
     # H-score over the percentages of ALL tumour cells, which is its definition:
@@ -401,13 +549,26 @@ def score(
         od_cuts=cuts.od,
         second_min=cuts.second_min,
         cuts_provisional=cuts.provisional,
+        averaging_used=averaging_used,
+        percent_ci_low=round(ci_low, 2),
+        percent_ci_high=round(ci_high, 2),
+        single_field_weight=round(
+            sum(region.weight_share for region in region_scores if region.fields <= 1), 4
+        )
+        if expandable
+        else 0.0,
+        unsampled_regions=len(unsampled),
+        unsampled_area_mm2=round(unsampled_area, 4),
+        total_area_mm2=round(total_area, 4),
     )
 
 
 __all__ = [
+    "BOOTSTRAP_SEED",
     "PERCENT_STEP",
     "MarkerScore",
     "RegionScore",
+    "bootstrap_interval",
     "round_to_step",
     "score",
 ]
