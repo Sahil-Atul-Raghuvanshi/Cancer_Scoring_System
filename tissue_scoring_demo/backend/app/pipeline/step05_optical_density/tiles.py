@@ -333,6 +333,11 @@ def read_tile(
 
     resampled = read != size
     if resampled:
+        # Box-averaged in the scanner's sRGB values, not in linear light - the same
+        # sRGB-encoded convention `imaging.optical_density` states and every density
+        # in the pipeline is calibrated under (P-21). Averaging encoded values is
+        # slightly darker than averaging light; it is consistent, and changing it
+        # would change every model input and cut point at once.
         image = image.resize((size, size), Image.Resampling.BOX)
 
     return Tile(

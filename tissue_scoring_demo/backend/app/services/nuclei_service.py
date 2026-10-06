@@ -48,6 +48,7 @@ from app.pipeline.step13_nuclei_segmentation.stain_input import (
     StainBasis,
     estimate_basis,
     ruifrok_basis,
+    ruifrok_he_basis,
 )
 from app.schemas.nuclei import (
     ComparisonOut,
@@ -454,7 +455,7 @@ class NucleiService:
             density = counted / sampled if sampled > 0 else 0.0
 
             job.message = "measuring the H&E reference density"
-            he_density, he_area = self._he_reference(
+            he_density, he_area, he_fields = self._he_reference(
                 he_upload_id, alignment, model_mpp=model.mpp
             )
             shortfall = (
@@ -486,6 +487,8 @@ class NucleiService:
                 ),
                 he_density_per_mm2=he_density,
                 he_median_area_um2=he_area,
+                he_reference_fields=he_fields,
+                he_reference_basis="ruifrok_he",
                 density_shortfall=shortfall,
                 seconds=round(time.monotonic() - job.started, 1),
                 notes=self._notes(regions, shortfall=shortfall),
@@ -644,7 +647,7 @@ class NucleiService:
 
     def _he_reference(
         self, he_upload_id: str, alignment, *, model_mpp: float
-    ) -> tuple[float | None, float | None]:
+    ) -> tuple[float | None, float | None, int]:
         """The same measurement on the H&E slide, inside the same regions.
 
         The number the IHC density has to be read against. Measured every run
@@ -652,55 +655,72 @@ class NucleiService:
         first marker of a case has nothing to compare with - and the check only
         starts working after a failure has already gone unnoticed once.
 
-        Uses the largest region and a handful of fields: this is a reference
-        level, not a result, and it costs about ten seconds.
+        **Sampled the way the IHC is, and un-mixed as an H&E (P-21).** It used to take
+        six fields of the largest region only, while the IHC count it is compared with
+        covers every region with fields allocated by area - so the two densities were
+        means over different tissue. It now uses the same regions, the same
+        area-proportional allocation and the same field budget, drawn on the H&E side
+        of each region. And it never un-mixes the H&E with the H-DAB basis, which read
+        every eosin pixel as part haematoxylin: nuclei are found on the H&E's own
+        photograph, the segmenter's native input, and the per-nucleus stain values use
+        the H&E basis.
+
+        Returns the density, the median nucleus area, and how many fields it used.
         """
         if not alignment.regions:
-            return None, None
+            return None, None, 0
 
         try:
             reader = open_slide(resolve_ready_path(upload_id=he_upload_id))
         except Exception:  # noqa: BLE001 - a missing H&E must not fail the step
-            return None, None
+            return None, None, 0
 
         try:
             base_mpp = reader.mpp
             if not base_mpp:
-                return None, None
+                return None, None, 0
             width, height = reader.dimensions
             white = calibration_service.white_point(he_upload_id)
-            basis = ruifrok_basis()
+            basis = ruifrok_he_basis()
 
-            region = max(alignment.regions, key=lambda r: r.area_mm2)
-            fields, _ = fields_for_region(
-                region.he_rings,
-                mpp=base_mpp,
-                slide_width=width,
-                slide_height=height,
-                count=settings.nuclei_reference_fields,
-            )
-            if not fields:
-                return None, None
-
+            # The IHC's own allocation, on the H&E side of the same regions.
+            shares = allocate([region.area_mm2 for region in alignment.regions])
             counted = 0
             area_mm2 = 0.0
+            used = 0
             areas: list[float] = []
-            for sample in fields:
-                segmented = segment_field(
-                    reader, sample, white=white, basis=basis,
-                    base_mpp=base_mpp, model_mpp=model_mpp,
+            for region, share in zip(alignment.regions, shares, strict=True):
+                fields, _ = fields_for_region(
+                    region.he_rings,
+                    mpp=base_mpp,
+                    slide_width=width,
+                    slide_height=height,
+                    count=share,
                 )
-                counted += segmented.counted
-                area_mm2 += segmented.counted_mm2
-                areas.extend(n.area_um2 for n in segmented.nuclei if n.counted)
+                for sample in fields:
+                    # The H&E's own photograph, not a redrawn haematoxylin image:
+                    # InstanSeg's brightfield model was trained on H&E RGB, so on the
+                    # H&E slide there is nothing to separate. Measured on the same six
+                    # fields: CAN_00270 1,781 (H-DAB, old) / 440 (H&E basis, redrawn) /
+                    # 1,762 (RGB); CAN_00303 9,372 / 4,042 / 4,054. Only RGB is right
+                    # on both - the H-DAB render counted eosin as nuclei on one, and
+                    # the H&E-basis render was too faint for the model on the other.
+                    segmented = segment_field(
+                        reader, sample, white=white, basis=basis,
+                        base_mpp=base_mpp, model_mpp=model_mpp, remove_dab=False,
+                    )
+                    counted += segmented.counted
+                    area_mm2 += segmented.counted_mm2
+                    used += 1
+                    areas.extend(n.area_um2 for n in segmented.nuclei if n.counted)
 
             if area_mm2 <= 0:
-                return None, None
+                return None, None, used
             median = float(np.median(areas)) if areas else None
-            return round(counted / area_mm2, 1), (round(median, 2) if median else None)
+            return round(counted / area_mm2, 1), (round(median, 2) if median else None), used
         except Exception:  # noqa: BLE001 - the reference is a check, not the answer
             logger.warning("H&E reference density could not be measured", exc_info=True)
-            return None, None
+            return None, None, 0
         finally:
             reader.close()
 

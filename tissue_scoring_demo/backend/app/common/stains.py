@@ -478,6 +478,25 @@ RUIFROK_INVERSE: np.ndarray = np.linalg.inv(RUIFROK_HDAB)
 RUIFROK_CHANNELS: tuple[str, str, str] = ("haematoxylin", "dab", "residual")
 
 
+def ruifrok_he() -> np.ndarray:
+    """Ruifrok's 3x3 haematoxylin-eosin matrix, closed the same way as the H-DAB one.
+
+    **For an H&E slide, never the H-DAB basis (P-21).** Step 11's H&E reference count
+    used to un-mix the H&E with the H-DAB matrix, and eosin has no column there: an
+    eosin pixel came out as 0.668 haematoxylin, 0.132 DAB and -0.625 residual. Every
+    pink pixel added false haematoxylin, so the reference count - the figure the IHC
+    shortfall, the DENOMINATOR INCOMPLETE caveat and the typing trust check are all
+    measured against - was taken on the wrong picture.
+    """
+    haematoxylin = np.asarray(REFERENCE_BY_NAME["haematoxylin"], dtype=np.float64)
+    eosin = np.asarray(REFERENCE_BY_NAME["eosin"], dtype=np.float64)
+    return complete_basis(np.stack([haematoxylin, eosin], axis=1))
+
+
+RUIFROK_HE: np.ndarray = ruifrok_he()
+RUIFROK_HE_INVERSE: np.ndarray = np.linalg.inv(RUIFROK_HE)
+
+
 def fixed_concentrations(od_flat: np.ndarray) -> np.ndarray:
     """Decompose optical density onto Ruifrok's fixed basis. Exact, and not clipped.
 

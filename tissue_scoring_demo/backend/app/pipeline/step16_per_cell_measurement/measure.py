@@ -193,7 +193,9 @@ def completeness(
         where=grid_pixels > 0,
     )
 
-    stained = occupied & (means > positivity_od)
+    # `>=`, the comparison step 17 makes on the cell's own mean (P-21): a value
+    # exactly on the cut is stained in both places, never in one and not the other.
+    stained = occupied & (means >= positivity_od)
     return stained.sum(axis=1) / float(bins), occupied.sum(axis=1)
 
 
@@ -214,7 +216,7 @@ def stained_fraction(
     """
     if cell_index.size == 0:
         return np.zeros(count)
-    above = (od > positivity_od).astype(np.float64)
+    above = (od >= positivity_od).astype(np.float64)
     totals, pixels = _per_cell_sums(cell_index, above, count)
     return np.divide(totals, pixels, out=np.zeros(count), where=pixels > 0)
 
@@ -266,7 +268,12 @@ def measure_field(
 
     rows, cols = np.nonzero(measured)
     cell_index = lookup[measured[rows, cols]]
-    od = dab[rows, cols].astype(np.float64)
+    # **Clipped at zero for measurement (P-21).** Un-mixing is exact and signed: a
+    # pixel the two stains cannot explain gets a negative amount of DAB, and step 6
+    # reports how many. Averaged into a cell's mean, those negatives pulled faint
+    # rings below their real level. There is no such thing as less than no stain, so
+    # the measurement reads them as none - the signed values stay what `unmix` returns.
+    od = np.clip(dab[rows, cols].astype(np.float64), 0.0, None)
 
     totals, pixels = _per_cell_sums(cell_index, od, count)
     mean_od = np.divide(totals, pixels, out=np.zeros(count), where=pixels > 0)

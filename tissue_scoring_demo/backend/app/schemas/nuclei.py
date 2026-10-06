@@ -167,10 +167,15 @@ class NucleiReport(APIModel):
     #: run rather than waiting for a second marker to exist - otherwise the first
     #: marker of a case has nothing to be compared with and the check that is
     #: supposed to catch a segmentation failure only starts working after one has
-    #: already gone unnoticed. Cheap: a handful of fields on a slide that is
-    #: already open in the pipeline.
+    #: already gone unnoticed. Sampled like the IHC - same regions, same
+    #: area-proportional field allocation - and un-mixed with the H&E basis (P-21).
     he_density_per_mm2: float | None = None
     he_median_area_um2: float | None = None
+    #: How many H&E fields the reference was counted over, and the basis used. A
+    #: report without them predates P-21, when the reference was six fields of one
+    #: region un-mixed with the H-DAB basis - and is biased.
+    he_reference_fields: int | None = None
+    he_reference_basis: str | None = None
     #: How far the IHC density falls short of the H&E's, as a fraction. The guide
     #: names 30% as the level at which this is a segmentation failure rather than
     #: biology.

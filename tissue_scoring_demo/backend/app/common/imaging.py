@@ -67,6 +67,11 @@ def channel_percentile(
     return (float(result[0]), float(result[1]), float(result[2]))
 
 
+#: What "optical density" means everywhere in this project (P-21): the scanner's sRGB
+#: values used as given, not linearised. See `optical_density`.
+OD_CONVENTION = "srgb_encoded"
+
+
 def optical_density(
     intensity: np.ndarray, white: np.ndarray | tuple[float, float, float], *, floor: float = 1.0
 ) -> np.ndarray:
@@ -87,6 +92,17 @@ def optical_density(
 
     `white` may be one triple - a flat white point - or a full HxWx3 field, for
     the fitted surface that also corrects vignetting. Both broadcast.
+
+    **The convention, stated (P-21): `intensity` is the scanner's sRGB-encoded value,
+    used as given, not linearised first.** Beer-Lambert holds for linear light, and
+    the sRGB curve compresses the dark end, so a density computed this way reads high
+    stain lower than a linear one would - which matters most at 2+/3+. It is kept on
+    purpose rather than corrected: every optical density in the pipeline is defined
+    under it - the step 8 heads were trained on it, the white point and noise floor
+    are measured in it, and the cut points are being fitted in it (P-01). Linearising
+    here alone would serve every model input it never saw and move every cut. Every
+    number this project reports as "OD" is therefore *sRGB-encoded OD*, calibrated
+    under that convention; `OD_CONVENTION` names it for any record that needs to.
     """
     observed = np.maximum(np.asarray(intensity, dtype=np.float32), np.float32(floor))
     reference = np.asarray(white, dtype=np.float32)

@@ -85,6 +85,20 @@ def ruifrok_basis() -> StainBasis:
     )
 
 
+def ruifrok_he_basis() -> StainBasis:
+    """Ruifrok's published H&E matrix, for counting nuclei on the H&E itself (P-21).
+
+    Column 0 is haematoxylin in both this and `ruifrok_basis`, so every function here
+    that reads `HAEMATOXYLIN` works on either - only what the second column absorbs
+    changes, eosin here and DAB there.
+    """
+    return StainBasis(
+        matrix=stains.RUIFROK_HE,
+        inverse=stains.RUIFROK_HE_INVERSE,
+        source="ruifrok_he",
+    )
+
+
 def estimate_basis(
     od_flat: np.ndarray,
     *,

@@ -1330,17 +1330,9 @@ class Settings(BaseSettings):
 
     nuclei_macenko_percentile: float = 1.0
 
-    #: Fields segmented on the **H&E** slide to establish the reference density
-    #: the IHC figure is read against.
-    #:
-    #: Six, not twelve: this is a level to compare with, not a result to publish,
-    #: and it costs about ten seconds. Measured on CAN_00270 it is also the single
-    #: most informative number the step produces - the H&E gives 1,245-2,825
-    #: nuclei per mm2 with a median nuclear area of 43 um2, and the CD44 section
-    #: of the same block gives 549 and 15. Same code, same regions, different
-    #: slide: that is the counterstain failing under dense DAB, exactly as the
-    #: guide predicts, and it is a 73% loss from the denominator.
-    nuclei_reference_fields: int = 6
+    # The H&E reference density is no longer a separate six-field sample: since P-21
+    # it is drawn with the IHC's own regions and field allocation
+    # (`nuclei_field_budget`), so the two densities are means over the same tissue.
 
     # --- step 12, cell typing -------------------------------------------------
     #
